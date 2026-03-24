@@ -4,20 +4,22 @@ See [CLAUDE.md](CLAUDE.md) for safety rules and architectural context.
 
 ## Current Status
 
-Phase 0 (preparation, before Panama) — not started
+Phase 0 (preparation, before Panama) — in progress
 
 ---
 
 ## Phase 0: Preparation (before Panama)
 
 ### 0a. Export all 2024_bci datasets + labels
-- [ ] Export annotations (masks) from all `2024_bci*` datasets to JSON + image URLs
+- [x] Export annotations (masks) from all `2024_bci*` datasets to JSON + image URLs
+- 65 datasets, 7,717 data rows — output in `output/00_exports/`
 - Follow three-stage safety protocol: demo dataset → one real dataset → all datasets
 - Export is read-only and safe
 
 ### 0b. Validate image URLs
-- [ ] Confirm Alliance Canada image URLs are still accessible
-- Spot-check a sample of URLs from the export
+- [x] Confirm Alliance Canada image URLs are still accessible
+- All image URLs confirmed OK (images already in Labelbox with labels = URLs are live)
+- 8 HTML map attachments returned 404 in spot-check — not a concern, supplementary only
 
 ### 0c. Build GBIF crosswalk CSV
 - [ ] Build backbone ↔ WCVP ID crosswalk
