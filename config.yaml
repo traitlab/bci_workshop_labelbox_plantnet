@@ -1,0 +1,31 @@
+labelbox:
+  # Dataset names to export (all datasets matching this prefix)
+  dataset_prefix: 2024_bci
+  # Demo dataset for Stage 1 testing (read-only, safe)
+  demo_dataset_name: Brazilian Amazon Trees - Demo
+  # Projects from which to import labels (all others, e.g. demo projects, are excluded)
+  label_projects:
+    - 2024_BCI
+    - 2024_BCI_Off-island
+    - 2024_BCI_northeast_old
+    - 2024_BCI_plots_old
+    - 2024_BCI_plots
+  # Name of the existing espanol ontology (source for Project B taxon list)
+  espanol_ontology_name: BCI close-up photo segmentation (espanol)
+  # Name of the new combined dataset to create (Phase 0e)
+  combined_dataset_name: BCI Combined - Drone Photos
+
+plantnet:
+  embeddings_api_url: https://my-api.plantnet.org/v2/embeddings
+
+folders:
+  output: output
+  exports: output/00_exports
+  crosswalk: output/01_crosswalk
+  species_list: output/02_species_list
+  dataset: output/03_dataset
+  project_a: output/04_project_a
+  export_for_plantnet: output/05_export_for_plantnet
+  project_b: output/06_project_b
+  predictions: output/07_predictions
+  embeddings: output/08_embeddings
