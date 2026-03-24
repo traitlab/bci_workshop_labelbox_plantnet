@@ -22,9 +22,10 @@ Phase 0 (preparation, before Panama) — in progress
 - 8 HTML map attachments returned 404 in spot-check — not a concern, supplementary only
 
 ### 0c. Build GBIF crosswalk CSV
-- [ ] Build backbone ↔ WCVP ID crosswalk
-- Resolve both ID systems to canonical scientific names, then match on name
-- Output CSV columns: `scientific_name | gbif_backbone_id | wcvp_gbif_id | match_type | match_confidence`
+- [x] Build backbone ↔ WCVP ID crosswalk
+- 279 unique taxa: 213 EXACT, 51 HIGHERRANK, 15 unmatched (14 genera + Martinella obovata)
+- 1 VARIETY (Paullinia fibrigera) rolled up to parent species; 0 SUBSPECIES
+- Output: `output/01_crosswalk/gbif_crosswalk.csv`, `crosswalk_summary.json`
 - Taxa where the crosswalk fails are excluded from metric computation (scientifically defensible)
 
 ### 0d. Derive species list from annotations
