@@ -23,7 +23,8 @@ Phase 0 (preparation, before Panama) — in progress
 
 ### 0c. Build GBIF crosswalk CSV
 - [x] Build backbone ↔ WCVP ID crosswalk
-- 279 unique taxa: 213 EXACT, 51 HIGHERRANK, 15 unmatched (14 genera + Martinella obovata)
+- 279 unique taxa: 279/279 matched (277 EXACT, 1 FUZZY, 1 remapped)
+- Terminalia amazonica → Terminalia amazonia (WCVP spelling); Hippocrateaceae → Celastraceae (synonymised family)
 - 1 VARIETY (Paullinia fibrigera) rolled up to parent species; 0 SUBSPECIES
 - Output: `output/01_crosswalk/gbif_crosswalk.csv`, `crosswalk_summary.json`
 - Taxa where the crosswalk fails are excluded from metric computation (scientifically defensible)

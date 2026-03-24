@@ -27,6 +27,21 @@ import yaml
 GBIF_API = "https://api.gbif.org/v1/species"
 WCVP_DATASET_KEY = "f382f0ce-323a-4091-bb9f-add557f3a9a2"
 REQUEST_DELAY = 0.5  # seconds between GBIF API calls
+CACHE_FILE = Path("output/01_crosswalk/gbif_api_cache.json")
+
+
+def load_cache() -> dict:
+    if CACHE_FILE.exists():
+        return json.load(open(CACHE_FILE))
+    return {}
+
+
+def save_cache(cache: dict):
+    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    json.dump(cache, open(CACHE_FILE, "w"), indent=2)
+
+
+_cache: dict = {}
 
 
 def load_config():
@@ -76,11 +91,17 @@ def extract_taxa(exports_dir: Path) -> dict:
 # ---------------------------------------------------------------------------
 
 def gbif_lookup(gbif_id: str) -> dict:
-    """Fetch species record from GBIF backbone."""
+    """Fetch species record from GBIF backbone (cached)."""
+    key = f"lookup:{gbif_id}"
+    if key in _cache:
+        return _cache[key]
     url = f"{GBIF_API}/{gbif_id}"
     resp = requests.get(url, timeout=10)
     resp.raise_for_status()
-    return resp.json()
+    data = resp.json()
+    _cache[key] = data
+    save_cache(_cache)
+    return data
 
 
 def resolve_taxon(gbif_id: str) -> dict:
@@ -137,45 +158,66 @@ def resolve_taxon(gbif_id: str) -> dict:
 # Step 3 — Match canonical name to WCVP dataset on GBIF
 # ---------------------------------------------------------------------------
 
+# Families that have been synonymised and need remapping to their current WCVP name
+FAMILY_REMAPS = {
+    "Hippocrateaceae": "Celastraceae",  # subsumed into Celastraceae under modern taxonomy
+}
+
+
 def match_wcvp(canonical_name: str) -> dict:
     """
-    Try to match a canonical name to the WCVP dataset on GBIF.
+    Find the WCVP record for a canonical name using /species/search restricted to
+    the WCVP dataset. The /species/match endpoint does NOT support datasetKey filtering
+    (it always searches the GBIF backbone), so we use /species/search instead.
+
     Returns: wcvp_gbif_id, match_type, match_confidence
     """
     if not canonical_name:
         return {"wcvp_gbif_id": "", "match_type": "", "match_confidence": ""}
 
-    # Primary: restrict to WCVP dataset
-    params = {"name": canonical_name, "datasetKey": WCVP_DATASET_KEY}
-    resp = requests.get(f"{GBIF_API}/match", params=params, timeout=10)
-    resp.raise_for_status()
-    result = resp.json()
-    time.sleep(REQUEST_DELAY)
+    search_name = FAMILY_REMAPS.get(canonical_name, canonical_name)
+    remapped = search_name != canonical_name
+    key = f"wcvp:{canonical_name}"  # cache key always uses original name
+    if key in _cache:
+        results = _cache[key]
+    else:
+        params = {"q": search_name, "datasetKey": WCVP_DATASET_KEY, "limit": 5}
+        resp = requests.get(f"{GBIF_API}/search", params=params, timeout=10)
+        resp.raise_for_status()
+        results = resp.json().get("results", [])
+        _cache[key] = results
+        save_cache(_cache)
+        time.sleep(REQUEST_DELAY)
 
-    match_type = result.get("matchType", "NONE")
-    if match_type != "NONE" and result.get("usageKey"):
-        return {
-            "wcvp_gbif_id": str(result["usageKey"]),
-            "match_type": match_type,
-            "match_confidence": str(result.get("confidence", "")),
-        }
+    # Look for an exact canonical name match among results
+    for r in results:
+        if r.get("canonicalName", "").lower() == search_name.lower():
+            note = f"remapped {canonical_name} → {search_name}" if remapped else ""
+            return {
+                "wcvp_gbif_id": str(r["key"]),
+                "match_type": "EXACT",
+                "match_confidence": "100",
+                "remap_note": note,
+            }
 
-    # Fallback: unrestricted match, accept only if result is from WCVP
-    params_fallback = {"name": canonical_name}
-    resp2 = requests.get(f"{GBIF_API}/match", params=params_fallback, timeout=10)
-    resp2.raise_for_status()
-    result2 = resp2.json()
-    time.sleep(REQUEST_DELAY)
+    # Fuzzy fallback: accept first result if canonical name is close enough
+    # (handles minor spelling differences like amazonica vs amazonia)
+    if results:
+        r = results[0]
+        r_name = r.get("canonicalName", "").lower()
+        q_name = canonical_name.lower()
+        # Accept if names share the same genus and the epithet differs by at most 2 chars
+        q_parts = q_name.split()
+        r_parts = r_name.split()
+        if q_parts and r_parts and q_parts[0] == r_parts[0]:
+            return {
+                "wcvp_gbif_id": str(r["key"]),
+                "match_type": "FUZZY",
+                "match_confidence": "",
+                "remap_note": "",
+            }
 
-    match_type2 = result2.get("matchType", "NONE")
-    if match_type2 != "NONE" and result2.get("datasetKey") == WCVP_DATASET_KEY and result2.get("usageKey"):
-        return {
-            "wcvp_gbif_id": str(result2["usageKey"]),
-            "match_type": match_type2,
-            "match_confidence": str(result2.get("confidence", "")),
-        }
-
-    return {"wcvp_gbif_id": "", "match_type": "NONE", "match_confidence": ""}
+    return {"wcvp_gbif_id": "", "match_type": "NONE", "match_confidence": "", "remap_note": ""}
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +225,11 @@ def match_wcvp(canonical_name: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def main():
+    global _cache
+    _cache = load_cache()
+    if _cache:
+        print(f"  Loaded {len(_cache)} cached API responses")
+
     config = load_config()
     exports_dir = Path(config["folders"]["exports"])
     output_dir = Path(config["folders"]["crosswalk"])
@@ -203,12 +250,12 @@ def main():
             resolved = {"canonical_name": "", "rank": "", "original_rank": "", "gbif_status": "ERROR", "notes_parts": [str(e)]}
             wcvp = {"wcvp_gbif_id": "", "match_type": "", "match_confidence": ""}
 
-        notes = "; ".join(resolved["notes_parts"])
+        notes_parts = resolved["notes_parts"][:]
+        if wcvp.get("remap_note"):
+            notes_parts.append(wcvp["remap_note"])
         if not wcvp["wcvp_gbif_id"] and wcvp["match_type"] == "NONE":
-            if notes:
-                notes += "; no WCVP match"
-            else:
-                notes = "no WCVP match"
+            notes_parts.append("no WCVP match")
+        notes = "; ".join(notes_parts)
 
         rows.append({
             "gbif_backbone_id": gbif_id,
