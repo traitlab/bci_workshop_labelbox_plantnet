@@ -53,6 +53,24 @@ python scripts/00_export/00_export_datasets.py --stage 3
 
 > **Data safety:** All existing Labelbox datasets are irreplaceable. The export script is strictly read-only. See [CLAUDE.md](CLAUDE.md) for the full safety protocol.
 
+### Phase 0b — Validate image URLs
+
+```bash
+# Sample check (5 rows per dataset)
+python scripts/01_validate_urls/01_validate_urls.py
+
+# Full check (all rows)
+python scripts/01_validate_urls/01_validate_urls.py --all
+```
+
+### Phase 0c — Build GBIF crosswalk
+
+```bash
+python scripts/02_crosswalk/02_build_crosswalk.py
+```
+
+Resolves GBIF backbone taxon IDs (used in ground truth labels) to WCVP-backbone IDs (used by Pl@ntNet predictions). Output: `output/01_crosswalk/gbif_crosswalk.csv`. API responses are cached in `output/01_crosswalk/gbif_api_cache.json` so re-runs are fast.
+
 ## Configuration
 
 All pipeline settings are in [config.yaml](config.yaml):
