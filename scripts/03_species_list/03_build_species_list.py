@@ -34,6 +34,11 @@ WCVP_DATASET_KEY = "f382f0ce-323a-4091-bb9f-add557f3a9a2"
 REQUEST_DELAY = 0.5
 CACHE_FILE = Path("output/01_crosswalk/gbif_api_cache.json")
 
+# Families synonymised under modern WCVP taxonomy — map GBIF backbone name to WCVP name
+FAMILY_REMAPS = {
+    "Cordiaceae": "Boraginaceae",  # Cordia moved into Boraginaceae under APG IV / WCVP
+}
+
 _cache: dict = {}
 
 
@@ -152,7 +157,10 @@ def find_parent_family(genus_backbone_id: str, genus_canonical_name: str) -> dic
                 return None
 
     family_name = family_data.get("canonicalName", "")
-    wcvp = match_wcvp(family_name)
+    wcvp_name = FAMILY_REMAPS.get(family_name, family_name)
+    wcvp = match_wcvp(wcvp_name)
+    if wcvp_name != family_name and wcvp["wcvp_gbif_id"]:
+        wcvp["wcvp_canonical_name"] = wcvp.get("wcvp_canonical_name") or wcvp_name
     return {
         "gbif_backbone_id": str(family_data.get("key", "")),
         "gbif_canonical_name": family_name,
