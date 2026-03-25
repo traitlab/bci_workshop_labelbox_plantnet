@@ -10,6 +10,9 @@ labelbox:
     - 2024_BCI_northeast_old
     - 2024_BCI_plots_old
     - 2024_BCI_plots
+  # Project A (all label types)
+  project_a_name: BCI Workshop - All Label Types
+  project_a_ontology_name: BCI Workshop - All Label Types
   # Name of the existing espanol ontology (source for Project B taxon list)
   espanol_ontology_name: BCI close-up photo segmentation (espanol)
   # Name of the new combined dataset to create (Phase 0e)

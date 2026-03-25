@@ -44,12 +44,16 @@ Phase 0 (preparation, before Panama) — in progress
 - Never move or copy existing data rows — created new ones
 
 ### 0f. Create Project A ontology + project
-- [ ] Create Project A ontology and project in Labelbox
-- Ontology has 4 annotation types sharing the same taxon list (from `bci_species_list.csv`):
-  - `[Global] Radio: "Dominant species"` — primary metric tool (GT = max-pixel species from masks; prediction = max-coverage species from Pl@ntNet)
-  - `[Global] Checklist: "Species present"` — presence/absence, no nested values
-  - `[Tool] BBOX: "Plant prediction"` — for Pl@ntNet box predictions, with nested Radio "Species"
-  - `[Tool] RASTER_SEGMENTATION: "Plant mask"` — for importing existing mask ground truth, with nested Radio "Species"
+- [x] Create Project A ontology and project in Labelbox
+- Project/ontology name: `BCI Workshop - All Label Types`
+- 389 unique taxon options (391 taxa minus 2 WCVP duplicates: Hippocrateaceae=Celastraceae, Tetragastris=Protium)
+- Option labels use `wcvp_canonical_name`, values use `wcvp_gbif_id`
+- Ontology has 4 annotation types:
+  - `[Global] Radio: "Dominant taxon"` — primary metric tool
+  - `[Global] Checklist: "Taxa present"` — presence/absence
+  - `[Tool] BBOX: "Plant box"` with nested Radio "Taxon"
+  - `[Tool] RASTER_SEGMENTATION: "Plant mask"` with nested Radio "Taxon"
+- Combined dataset (7,717 rows) sent to project
 
 ### 0g. Import ground truth labels into Project A
 - [ ] Import existing mask labels + derived Radio/Checklist annotations
