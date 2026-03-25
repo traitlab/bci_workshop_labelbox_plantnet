@@ -12,6 +12,9 @@ For multi-answer masks (botanist selected 2 taxa for one mask), each answer coun
 as a separate taxon presence, and pixel count is split equally between them.
 Taxa whose GBIF backbone ID has no WCVP match are skipped.
 
+Mask PNGs are cached to disk under output/07_gt_masks_cache/ so re-runs skip
+already-downloaded masks. Labels already imported into Labelbox are also skipped.
+
 Three-stage safety protocol:
   Stage 1: 3 images from first dataset — review before proceeding
   Stage 2: one full dataset — review before proceeding
@@ -25,6 +28,7 @@ Usage:
 
 import argparse
 import csv
+import hashlib
 import io
 import json
 import os
@@ -42,7 +46,7 @@ import labelbox.types as lb_types
 from dotenv import load_dotenv
 import yaml
 
-MASK_WORKERS = 8      # concurrent mask downloads
+MASK_WORKERS = 30     # concurrent mask downloads
 BATCH_SIZE = 100      # labels per import batch
 MASK_RETRY = 3        # retries per mask download
 
@@ -53,7 +57,6 @@ def load_config():
 
 
 def load_crosswalk(crosswalk_path: Path) -> dict:
-    """Returns {gbif_backbone_id: wcvp_gbif_id} for taxa with a WCVP match."""
     xwalk = {}
     for row in csv.DictReader(open(crosswalk_path)):
         if row["wcvp_gbif_id"]:
@@ -62,7 +65,6 @@ def load_crosswalk(crosswalk_path: Path) -> dict:
 
 
 def load_species_list(species_list_path: Path) -> dict:
-    """Returns {wcvp_gbif_id: wcvp_canonical_name}."""
     return {
         row["wcvp_gbif_id"]: row["wcvp_canonical_name"]
         for row in csv.DictReader(open(species_list_path))
@@ -70,13 +72,22 @@ def load_species_list(species_list_path: Path) -> dict:
     }
 
 
-def download_mask(url: str, api_key: str) -> bytes | None:
-    """Download a mask PNG, with retries. Returns bytes or None on failure."""
+def url_to_cache_path(cache_dir: Path, url: str) -> Path:
+    h = hashlib.md5(url.encode()).hexdigest()
+    return cache_dir / f"{h}.png"
+
+
+def download_mask(url: str, api_key: str, cache_dir: Path) -> bytes | None:
+    """Download a mask PNG with disk caching and retries."""
+    cache_path = url_to_cache_path(cache_dir, url)
+    if cache_path.exists():
+        return cache_path.read_bytes()
     headers = {"Authorization": f"Bearer {api_key}"}
     for attempt in range(MASK_RETRY):
         try:
             resp = requests.get(url, headers=headers, timeout=30)
             if resp.status_code == 200:
+                cache_path.write_bytes(resp.content)
                 return resp.content
         except requests.RequestException:
             pass
@@ -85,23 +96,14 @@ def download_mask(url: str, api_key: str) -> bytes | None:
 
 
 def count_mask_pixels(mask_bytes: bytes) -> int:
-    """Count non-background pixels in a mask PNG (checks alpha channel if RGBA, else non-zero)."""
     img = Image.open(io.BytesIO(mask_bytes)).convert("RGBA")
     arr = np.array(img)
     return int((arr[:, :, 3] > 0).sum())
 
 
-def process_image(row: dict, crosswalk: dict, wcvp_names: dict, api_key: str) -> lb_types.Label | None:
-    """
-    Build a Label for one image.
-    Returns None if no labeled masks with valid WCVP IDs.
-    """
-    global_key = "comb_" + row["data_row"]["global_key"]
-
-    # Collect all annotated objects with taxon info
-    mask_entries = []  # list of {wcvp_id, mask_bytes, pixel_count}
-    taxa_present = set()
-
+def collect_mask_urls(row: dict, crosswalk: dict) -> list[dict]:
+    """Extract all mask URLs + taxon info from an exported row."""
+    entries = []
     for proj in row.get("projects", {}).values():
         for label in proj.get("labels", []):
             for obj in label.get("annotations", {}).get("objects", []):
@@ -111,66 +113,59 @@ def process_image(row: dict, crosswalk: dict, wcvp_names: dict, api_key: str) ->
                 answers = classifications[0].get("checklist_answers", [])
                 if not answers:
                     continue
-
                 mask_url = obj.get("mask", {}).get("url")
                 if not mask_url:
                     continue
+                wcvp_ids = [crosswalk[a["value"]] for a in answers if crosswalk.get(a["value"])]
+                if wcvp_ids:
+                    entries.append({"url": mask_url, "wcvp_ids": wcvp_ids})
+    return entries
 
-                # Get WCVP IDs for all answers
-                wcvp_ids = []
-                for ans in answers:
-                    gbif_id = ans.get("value", "")
-                    wcvp_id = crosswalk.get(gbif_id)
-                    if wcvp_id:
-                        wcvp_ids.append(wcvp_id)
 
-                if not wcvp_ids:
-                    continue
-
-                # Download mask
-                mask_bytes = download_mask(mask_url, api_key)
-                if mask_bytes is None:
-                    continue
-
-                pixel_count = count_mask_pixels(mask_bytes)
-                if pixel_count == 0:
-                    continue
-
-                # Split pixels equally among multi-answer taxa
-                px_per_taxon = pixel_count // len(wcvp_ids)
-                for wcvp_id in wcvp_ids:
-                    taxa_present.add(wcvp_id)
-                    mask_entries.append({
-                        "wcvp_id": wcvp_id,
-                        "mask_bytes": mask_bytes,
-                        "pixel_count": px_per_taxon,
-                    })
-
-    if not taxa_present:
+def build_label(row: dict, crosswalk: dict, wcvp_names: dict,
+                api_key: str, cache_dir: Path) -> lb_types.Label | None:
+    global_key = "comb_" + row["data_row"]["global_key"]
+    mask_entries_info = collect_mask_urls(row, crosswalk)
+    if not mask_entries_info:
         return None
 
-    # Find dominant taxon (most total pixels)
-    pixel_totals = defaultdict(int)
-    for entry in mask_entries:
-        pixel_totals[entry["wcvp_id"]] += entry["pixel_count"]
-    dominant_wcvp_id = max(pixel_totals, key=pixel_totals.get)
+    # Download all masks for this image (sequentially within image, parallelized across images)
+    # For multi-answer masks (2+ taxa per mask): use the mask PNG once with the first taxon,
+    # add all taxa to pixel counts and taxa_present. This avoids "duplicate mask" errors.
+    mask_entries = []
+    taxa_pixel_counts: dict[str, int] = defaultdict(int)
+    for info in mask_entries_info:
+        mask_bytes = download_mask(info["url"], api_key, cache_dir)
+        if mask_bytes is None:
+            continue
+        pixel_count = count_mask_pixels(mask_bytes)
+        if pixel_count == 0:
+            continue
+        px_per_taxon = max(1, pixel_count // len(info["wcvp_ids"]))
+        # Only create one mask annotation per PNG (first taxon), count pixels for all
+        for i, wcvp_id in enumerate(info["wcvp_ids"]):
+            taxa_pixel_counts[wcvp_id] += px_per_taxon
+            if i == 0:
+                mask_entries.append({
+                    "wcvp_id": wcvp_id,
+                    "mask_bytes": mask_bytes,
+                    "pixel_count": px_per_taxon,
+                })
+
+    if not mask_entries:
+        return None
+
+    taxa_present = set(taxa_pixel_counts.keys())
+    dominant_wcvp_id = max(taxa_pixel_counts, key=taxa_pixel_counts.get)
     dominant_name = wcvp_names.get(dominant_wcvp_id, dominant_wcvp_id)
 
-    # Build annotations
-    annotations = []
-
-    # Radio: Dominant taxon
-    annotations.append(
+    annotations = [
         lb_types.ClassificationAnnotation(
             name="Dominant taxon",
             value=lb_types.Radio(
                 answer=lb_types.ClassificationAnswer(name=dominant_name)
             ),
-        )
-    )
-
-    # Checklist: Taxa present
-    annotations.append(
+        ),
         lb_types.ClassificationAnnotation(
             name="Taxa present",
             value=lb_types.Checklist(
@@ -180,15 +175,13 @@ def process_image(row: dict, crosswalk: dict, wcvp_names: dict, api_key: str) ->
                     if wid in wcvp_names
                 ]
             ),
-        )
-    )
+        ),
+    ]
 
-    # Raster Seg masks
     for entry in mask_entries:
         wcvp_id = entry["wcvp_id"]
         if wcvp_id not in wcvp_names:
             continue
-        taxon_name = wcvp_names[wcvp_id]
         annotations.append(
             lb_types.ObjectAnnotation(
                 name="Plant mask",
@@ -200,7 +193,7 @@ def process_image(row: dict, crosswalk: dict, wcvp_names: dict, api_key: str) ->
                     lb_types.ClassificationAnnotation(
                         name="Taxon",
                         value=lb_types.Radio(
-                            answer=lb_types.ClassificationAnswer(name=taxon_name)
+                            answer=lb_types.ClassificationAnswer(name=wcvp_names[wcvp_id])
                         ),
                     )
                 ],
@@ -228,27 +221,20 @@ def collect_rows(exports_dir: Path, stage: int, dataset_name: str | None) -> lis
 
     rows = []
     for f in files:
-        file_rows = json.load(open(f))
-        rows.extend(file_rows)
+        rows.extend(json.load(open(f)))
 
-    # Keep only rows that have labels
-    labeled = []
-    for row in rows:
-        has_label = any(
-            proj.get("labels")
-            for proj in row.get("projects", {}).values()
-        )
-        if has_label:
-            labeled.append(row)
+    labeled = [
+        row for row in rows
+        if any(proj.get("labels") for proj in row.get("projects", {}).values())
+    ]
 
     if stage == 1:
         labeled = labeled[:3]
-
     return labeled
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Import ground truth labels into Project A.")
+    parser = argparse.ArgumentParser()
     parser.add_argument("--stage", type=int, required=True, choices=[1, 2, 3])
     parser.add_argument("--dataset", type=str)
     args = parser.parse_args()
@@ -258,6 +244,8 @@ def main():
     exports_dir = Path(config["folders"]["exports"])
     crosswalk_path = Path(config["folders"]["crosswalk"]) / "gbif_crosswalk.csv"
     species_list_path = Path(config["folders"]["species_list"]) / "bci_species_list.csv"
+    cache_dir = Path(config["folders"]["output"]) / "07_gt_masks_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
     api_key = os.environ["LABELBOX_API_KEY"]
     client = lb.Client(api_key=api_key)
@@ -265,33 +253,58 @@ def main():
     project_name = config["labelbox"]["project_a_name"]
     project = next((p for p in client.get_projects() if p.name == project_name), None)
     if project is None:
-        print(f"ERROR: Project '{project_name}' not found. Run Phase 0f first.")
+        print(f"ERROR: Project '{project_name}' not found.")
         sys.exit(1)
 
     crosswalk = load_crosswalk(crosswalk_path)
     wcvp_names = load_species_list(species_list_path)
-    print(f"Crosswalk: {len(crosswalk)} GBIF->WCVP mappings")
-    print(f"Species list: {len(wcvp_names)} WCVP taxa")
 
     rows = collect_rows(exports_dir, args.stage, args.dataset)
-    print(f"\nStage {args.stage}: {len(rows)} labeled images to process")
+    print(f"Stage {args.stage}: {len(rows)} labeled images")
 
-    # Process images with concurrent mask downloads
+    # Find already-imported global keys to skip
+    print("Fetching already-imported global keys ...")
+    imported_keys = set()
+    for label in project.labels():
+        imported_keys.add(label.data_row().global_key)
+    print(f"  {len(imported_keys)} already imported, will skip")
+
+    rows_to_process = [
+        r for r in rows
+        if ("comb_" + r["data_row"]["global_key"]) not in imported_keys
+    ]
+    print(f"  {len(rows_to_process)} remaining to process\n")
+
+    if not rows_to_process:
+        print("Nothing to do — all already imported.")
+        return
+
+    # Process images in parallel
     labels = []
     failed = 0
-    for i, row in enumerate(rows, 1):
-        gk = row["data_row"]["global_key"]
-        print(f"  [{i}/{len(rows)}] {gk} ...", end=" ", flush=True)
-        try:
-            label = process_image(row, crosswalk, wcvp_names, api_key)
-            if label:
-                labels.append(label)
-                print("OK")
-            else:
-                print("skipped (no valid taxa)")
-        except Exception as e:
-            print(f"ERROR: {e}")
-            failed += 1
+    done = 0
+
+    def process(row):
+        return build_label(row, crosswalk, wcvp_names, api_key, cache_dir)
+
+    with ThreadPoolExecutor(max_workers=MASK_WORKERS) as executor:
+        futures = {executor.submit(process, row): row for row in rows_to_process}
+        for future in as_completed(futures):
+            done += 1
+            row = futures[future]
+            gk = row["data_row"]["global_key"]
+            try:
+                label = future.result()
+                if label:
+                    labels.append(label)
+                    status = "OK"
+                else:
+                    status = "skipped"
+            except Exception as e:
+                status = f"ERROR: {e}"
+                failed += 1
+            if done % 50 == 0 or done <= 10:
+                print(f"  [{done}/{len(rows_to_process)}] {gk} ... {status}")
 
     print(f"\n{len(labels)} labels built, {failed} errors")
     if not labels:
@@ -306,16 +319,16 @@ def main():
         import_job = lb.LabelImport.create_from_objects(
             client=client,
             project_id=project.uid,
-            name=f"gt_import_stage{args.stage}_{i}",
+            name=f"gt_s{args.stage}_{i}",
             labels=batch,
         )
-        import_job.wait_until_done()
+        import_job.wait_till_done()
         errors = import_job.errors
         if errors:
             print(f"  Batch {i//BATCH_SIZE+1} errors: {errors[:3]}")
         else:
             total_ok += len(batch)
-            print(f"  Batch {i//BATCH_SIZE+1}: {len(batch)} labels OK ({total_ok}/{len(labels)} total)")
+            print(f"  Batch {i//BATCH_SIZE+1}: {len(batch)} OK ({total_ok}/{len(labels)} total)")
 
     print(f"\nDone. {total_ok}/{len(labels)} labels imported into '{project_name}'.")
     if args.stage < 3:
