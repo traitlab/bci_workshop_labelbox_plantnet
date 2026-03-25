@@ -71,6 +71,41 @@ python scripts/02_crosswalk/02_build_crosswalk.py
 
 Resolves GBIF backbone taxon IDs (used in ground truth labels) to WCVP-backbone IDs (used by Pl@ntNet predictions). Output: `output/01_crosswalk/gbif_crosswalk.csv`. API responses are cached in `output/01_crosswalk/gbif_api_cache.json` so re-runs are fast.
 
+### Phase 0d — Build species list
+
+```bash
+python scripts/03_species_list/03_build_species_list.py
+```
+
+Derives the Project A ontology taxon list from the crosswalk. Ensures every annotated species has its parent genus and family present. Checks the 4,000-option Labelbox ontology limit. Output: `output/02_species_list/bci_species_list.csv`.
+
+### Phase 0e — Create combined dataset
+
+```bash
+# Stage 1: 3 demo rows — review before proceeding
+python scripts/04_combined_dataset/04_create_combined_dataset.py --stage 1
+
+# Stage 2: one dataset — review before proceeding
+python scripts/04_combined_dataset/04_create_combined_dataset.py --stage 2 --dataset "2024_bci_XXXX"
+
+# Stage 3: all datasets
+python scripts/04_combined_dataset/04_create_combined_dataset.py --stage 3
+```
+
+Creates the `BCI Workshop - Drone Photos` Labelbox dataset with new data rows pointing to the same Alliance Canada URLs. Global keys are prefixed with `comb_`; the original global key is stored in an `original_global_key` metadata field. Idempotent: skips already-uploaded rows on re-runs.
+
+### Phase 0h — Export image list for Pl@ntNet team
+
+```bash
+# Test: first 2 rows only
+python scripts/05_export_for_plantnet/05_export_for_plantnet.py --test
+
+# Full export: all 7,717 rows
+python scripts/05_export_for_plantnet/05_export_for_plantnet.py
+```
+
+Exports a CSV (`global_key`, `image_url`, `mission`) for the Pl@ntNet team to run multi-species survey predictions. Output: `output/05_export_for_plantnet/bci_images_for_plantnet.csv`.
+
 ## Configuration
 
 All pipeline settings are in [config.yaml](config.yaml):
