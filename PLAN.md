@@ -37,9 +37,11 @@ Phase 0 (preparation, before Panama) — in progress
 - Output: `output/02_species_list/bci_species_list.csv`, `species_list_summary.json`
 
 ### 0e. Create combined BCI dataset
-- [ ] Create a new combined dataset in Labelbox with new data rows pointing to the same Alliance Canada URLs
-- Never move or copy existing data rows — create new ones
-- Required for Catalog similarity search (works only within a single dataset)
+- [x] Create a new combined dataset in Labelbox with new data rows pointing to the same Alliance Canada URLs
+- Dataset: `BCI Workshop - Drone Photos` — 7,717 data rows
+- Global keys prefixed with `comb_`; original global key stored in `original_global_key` metadata field
+- Metadata fields and attachments carried over from source datasets
+- Never move or copy existing data rows — created new ones
 
 ### 0f. Create Project A ontology + project
 - [ ] Create Project A ontology and project in Labelbox

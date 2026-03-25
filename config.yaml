@@ -13,7 +13,7 @@ labelbox:
   # Name of the existing espanol ontology (source for Project B taxon list)
   espanol_ontology_name: BCI close-up photo segmentation (espanol)
   # Name of the new combined dataset to create (Phase 0e)
-  combined_dataset_name: BCI Combined - Drone Photos
+  combined_dataset_name: BCI Workshop - Drone Photos
 
 plantnet:
   embeddings_api_url: https://my-api.plantnet.org/v2/embeddings
