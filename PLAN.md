@@ -56,7 +56,9 @@ Phase 0 (preparation, before Panama) — in progress
 - Radio field must be pre-filled with the dominant species (most mask pixels) per image — required for Labelbox metrics to work
 
 ### 0h. Export dataset JSON for Pl@ntNet team
-- [ ] Export combined dataset (image URLs + metadata) as JSON file to send to Pl@ntNet team
+- [x] Export image list CSV for Pl@ntNet team
+- 7,717 rows: global_key, image_url, mission
+- Output: `output/05_export_for_plantnet/bci_images_for_plantnet.csv`
 - They will run the multi-species predictions and return a JSON with results
 - We do NOT call the survey API ourselves (rate limit constraints)
 
