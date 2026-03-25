@@ -72,8 +72,26 @@ def gbif_lookup(gbif_id: str) -> dict:
     return data
 
 
+def wcvp_lookup(wcvp_key: int | str) -> dict:
+    """Fetch a WCVP record by key (cached)."""
+    key = f"wcvp_lookup:{wcvp_key}"
+    if key in _cache:
+        return _cache[key]
+    resp = requests.get(f"{GBIF_API}/{wcvp_key}", timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+    _cache[key] = data
+    save_cache(_cache)
+    time.sleep(REQUEST_DELAY)
+    return data
+
+
 def match_wcvp(canonical_name: str) -> dict:
-    """Search WCVP dataset for a canonical name. Returns wcvp_gbif_id, wcvp_canonical_name, wcvp_status."""
+    """
+    Search WCVP dataset for a canonical name. Returns wcvp_gbif_id, wcvp_canonical_name, wcvp_status.
+    Always returns an ACCEPTED taxon: if the matched record is a SYNONYM, follows acceptedKey
+    to retrieve the accepted taxon.
+    """
     if not canonical_name:
         return {"wcvp_gbif_id": "", "wcvp_canonical_name": "", "wcvp_status": ""}
     key = f"wcvp:{canonical_name}"
@@ -87,22 +105,49 @@ def match_wcvp(canonical_name: str) -> dict:
         _cache[key] = results
         save_cache(_cache)
         time.sleep(REQUEST_DELAY)
-    for r in results:
-        if r.get("canonicalName", "").lower() == canonical_name.lower():
+
+    # Prefer ACCEPTED exact match
+    exact_matches = [r for r in results if r.get("canonicalName", "").lower() == canonical_name.lower()]
+    accepted = next((r for r in exact_matches if r.get("taxonomicStatus") == "ACCEPTED"), None)
+    if accepted:
+        return {
+            "wcvp_gbif_id": str(accepted["key"]),
+            "wcvp_canonical_name": accepted.get("canonicalName", ""),
+            "wcvp_status": accepted.get("taxonomicStatus", ""),
+        }
+
+    # Only synonyms found — follow acceptedKey of the first exact match to get accepted taxon
+    if exact_matches:
+        synonym = exact_matches[0]
+        accepted_key = synonym.get("acceptedKey")
+        if accepted_key:
+            accepted_data = wcvp_lookup(accepted_key)
             return {
-                "wcvp_gbif_id": str(r["key"]),
-                "wcvp_canonical_name": r.get("canonicalName", ""),
-                "wcvp_status": r.get("taxonomicStatus", ""),
+                "wcvp_gbif_id": str(accepted_data.get("key", "")),
+                "wcvp_canonical_name": accepted_data.get("canonicalName", ""),
+                "wcvp_status": accepted_data.get("taxonomicStatus", ""),
             }
-    # Fuzzy: first result with same genus
+
+    # Fuzzy fallback: first result with same genus, prefer ACCEPTED
     if results:
-        r = results[0]
-        if r.get("canonicalName", "").split()[:1] == canonical_name.split()[:1]:
+        same_genus = [r for r in results if r.get("canonicalName", "").split()[:1] == canonical_name.split()[:1]]
+        r = next((r for r in same_genus if r.get("taxonomicStatus") == "ACCEPTED"), same_genus[0] if same_genus else None)
+        if r:
+            if r.get("taxonomicStatus") != "ACCEPTED":
+                accepted_key = r.get("acceptedKey")
+                if accepted_key:
+                    accepted_data = wcvp_lookup(accepted_key)
+                    return {
+                        "wcvp_gbif_id": str(accepted_data.get("key", "")),
+                        "wcvp_canonical_name": accepted_data.get("canonicalName", ""),
+                        "wcvp_status": accepted_data.get("taxonomicStatus", ""),
+                    }
             return {
                 "wcvp_gbif_id": str(r["key"]),
                 "wcvp_canonical_name": r.get("canonicalName", ""),
                 "wcvp_status": r.get("taxonomicStatus", ""),
             }
+
     return {"wcvp_gbif_id": "", "wcvp_canonical_name": "", "wcvp_status": ""}
 
 

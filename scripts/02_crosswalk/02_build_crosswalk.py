@@ -189,31 +189,45 @@ def match_wcvp(canonical_name: str) -> dict:
         save_cache(_cache)
         time.sleep(REQUEST_DELAY)
 
-    # Look for an exact canonical name match among results
-    for r in results:
-        if r.get("canonicalName", "").lower() == search_name.lower():
-            note = f"remapped {canonical_name} → {search_name}" if remapped else ""
-            return {
-                "wcvp_gbif_id": str(r["key"]),
-                "wcvp_canonical_name": r.get("canonicalName", ""),
-                "wcvp_status": r.get("taxonomicStatus", ""),
-                "match_type": "EXACT",
-                "match_confidence": "100",
-                "remap_note": note,
-            }
+    note = f"remapped {canonical_name} -> {search_name}" if remapped else ""
 
-    # Fuzzy fallback: accept first result if canonical name is close enough
-    # (handles minor spelling differences like amazonica vs amazonia)
+    def resolve_accepted(r: dict) -> dict | None:
+        """If r is a SYNONYM, follow acceptedKey to get the accepted WCVP record."""
+        if r.get("taxonomicStatus") == "ACCEPTED":
+            return r
+        accepted_key = r.get("acceptedKey")
+        if not accepted_key:
+            return None
+        accepted_data = gbif_lookup(str(accepted_key))
+        return accepted_data
+
+    # Prefer ACCEPTED exact match; if only synonyms, follow acceptedKey
+    exact_matches = [r for r in results if r.get("canonicalName", "").lower() == search_name.lower()]
+    accepted = next((r for r in exact_matches if r.get("taxonomicStatus") == "ACCEPTED"), None)
+    if not accepted and exact_matches:
+        accepted = resolve_accepted(exact_matches[0])
+        if accepted:
+            note = (note + "; synonym resolved in WCVP").lstrip("; ")
+    if accepted:
+        return {
+            "wcvp_gbif_id": str(accepted.get("key", accepted.get("usageKey", ""))),
+            "wcvp_canonical_name": accepted.get("canonicalName", ""),
+            "wcvp_status": accepted.get("taxonomicStatus", ""),
+            "match_type": "EXACT",
+            "match_confidence": "100",
+            "remap_note": note,
+        }
+
+    # Fuzzy fallback: accept first result with same genus, prefer ACCEPTED
     if results:
-        r = results[0]
-        r_name = r.get("canonicalName", "").lower()
-        q_name = canonical_name.lower()
-        # Accept if names share the same genus and the epithet differs by at most 2 chars
-        q_parts = q_name.split()
-        r_parts = r_name.split()
-        if q_parts and r_parts and q_parts[0] == r_parts[0]:
+        q_parts = canonical_name.lower().split()
+        same_genus = [r for r in results if r.get("canonicalName", "").lower().split()[:1] == q_parts[:1]]
+        r = next((r for r in same_genus if r.get("taxonomicStatus") == "ACCEPTED"), same_genus[0] if same_genus else None)
+        if r:
+            if r.get("taxonomicStatus") != "ACCEPTED":
+                r = resolve_accepted(r) or r
             return {
-                "wcvp_gbif_id": str(r["key"]),
+                "wcvp_gbif_id": str(r.get("key", r.get("usageKey", ""))),
                 "wcvp_canonical_name": r.get("canonicalName", ""),
                 "wcvp_status": r.get("taxonomicStatus", ""),
                 "match_type": "FUZZY",
