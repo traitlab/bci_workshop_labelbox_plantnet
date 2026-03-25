@@ -56,8 +56,11 @@ Phase 0 (preparation, before Panama) — in progress
 - Combined dataset (7,717 rows) sent to project
 
 ### 0g. Import ground truth labels into Project A
-- [ ] Import existing mask labels + derived Radio/Checklist annotations
-- Radio field must be pre-filled with the dominant species (most mask pixels) per image — required for Labelbox metrics to work
+- [x] Import existing mask labels + derived Radio/Checklist annotations
+- Downloads each mask PNG, counts alpha pixels to find dominant taxon per image
+- Radio "Dominant taxon" = max-pixel taxon; Checklist "Taxa present" = all taxa; Plant mask = raster seg per object
+- Masks with no taxon assignment skipped; taxa with no WCVP match skipped
+- 6,380 masks with taxa across 7,264 labeled images (of 7,717 total)
 
 ### 0h. Export dataset JSON for Pl@ntNet team
 - [x] Export image list CSV for Pl@ntNet team
