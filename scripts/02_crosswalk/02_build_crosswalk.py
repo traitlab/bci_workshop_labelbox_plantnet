@@ -173,7 +173,7 @@ def match_wcvp(canonical_name: str) -> dict:
     Returns: wcvp_gbif_id, match_type, match_confidence
     """
     if not canonical_name:
-        return {"wcvp_gbif_id": "", "match_type": "", "match_confidence": ""}
+        return {"wcvp_gbif_id": "", "wcvp_canonical_name": "", "wcvp_status": "", "match_type": "", "match_confidence": ""}
 
     search_name = FAMILY_REMAPS.get(canonical_name, canonical_name)
     remapped = search_name != canonical_name
@@ -195,6 +195,8 @@ def match_wcvp(canonical_name: str) -> dict:
             note = f"remapped {canonical_name} → {search_name}" if remapped else ""
             return {
                 "wcvp_gbif_id": str(r["key"]),
+                "wcvp_canonical_name": r.get("canonicalName", ""),
+                "wcvp_status": r.get("taxonomicStatus", ""),
                 "match_type": "EXACT",
                 "match_confidence": "100",
                 "remap_note": note,
@@ -212,12 +214,14 @@ def match_wcvp(canonical_name: str) -> dict:
         if q_parts and r_parts and q_parts[0] == r_parts[0]:
             return {
                 "wcvp_gbif_id": str(r["key"]),
+                "wcvp_canonical_name": r.get("canonicalName", ""),
+                "wcvp_status": r.get("taxonomicStatus", ""),
                 "match_type": "FUZZY",
                 "match_confidence": "",
                 "remap_note": "",
             }
 
-    return {"wcvp_gbif_id": "", "match_type": "NONE", "match_confidence": "", "remap_note": ""}
+    return {"wcvp_gbif_id": "", "wcvp_canonical_name": "", "wcvp_status": "", "match_type": "NONE", "match_confidence": "", "remap_note": ""}
 
 
 # ---------------------------------------------------------------------------
@@ -248,7 +252,7 @@ def main():
         except Exception as e:
             print(f"    ERROR: {e}")
             resolved = {"canonical_name": "", "rank": "", "original_rank": "", "gbif_status": "ERROR", "notes_parts": [str(e)]}
-            wcvp = {"wcvp_gbif_id": "", "match_type": "", "match_confidence": ""}
+            wcvp = {"wcvp_gbif_id": "", "wcvp_canonical_name": "", "wcvp_status": "", "match_type": "", "match_confidence": ""}
 
         notes_parts = resolved["notes_parts"][:]
         if wcvp.get("remap_note"):
@@ -260,11 +264,13 @@ def main():
         rows.append({
             "gbif_backbone_id": gbif_id,
             "original_name": meta["original_name"],
-            "canonical_name": resolved["canonical_name"],
-            "rank": resolved["rank"],
             "original_rank": resolved["original_rank"],
-            "gbif_status": resolved["gbif_status"],
+            "gbif_canonical_name": resolved["canonical_name"],
+            "rank": resolved["rank"],
+            "gbif_backbone_status": resolved["gbif_status"],
             "wcvp_gbif_id": wcvp["wcvp_gbif_id"],
+            "wcvp_canonical_name": wcvp["wcvp_canonical_name"],
+            "wcvp_status": wcvp["wcvp_status"],
             "match_type": wcvp["match_type"],
             "match_confidence": wcvp["match_confidence"],
             "annotation_count": meta["annotation_count"],
@@ -273,8 +279,9 @@ def main():
 
     # Write CSV
     csv_file = output_dir / "gbif_crosswalk.csv"
-    fieldnames = ["gbif_backbone_id", "original_name", "canonical_name", "rank", "original_rank",
-                  "gbif_status", "wcvp_gbif_id", "match_type", "match_confidence", "annotation_count", "notes"]
+    fieldnames = ["gbif_backbone_id", "original_name", "original_rank", "gbif_canonical_name", "rank",
+                  "gbif_backbone_status", "wcvp_gbif_id", "wcvp_canonical_name", "wcvp_status",
+                  "match_type", "match_confidence", "annotation_count", "notes"]
     with open(csv_file, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -287,7 +294,7 @@ def main():
         "total_taxa": len(rows),
         "by_rank": dict(Counter(r["rank"] for r in rows)),
         "by_original_rank": dict(Counter(r["original_rank"] for r in rows)),
-        "by_gbif_status": dict(Counter(r["gbif_status"] for r in rows)),
+        "by_gbif_status": dict(Counter(r["gbif_backbone_status"] for r in rows)),
         "by_match_type": dict(Counter(r["match_type"] for r in rows)),
         "wcvp_matched": sum(1 for r in rows if r["wcvp_gbif_id"]),
         "wcvp_unmatched": sum(1 for r in rows if not r["wcvp_gbif_id"]),
