@@ -30,16 +30,11 @@ Phase 0 (preparation, before Panama) — in progress
 - Taxa where the crosswalk fails are excluded from metric computation (scientifically defensible)
 
 ### 0d. Derive species list from annotations
-- [ ] Compile species list for Project A ontology
-- Pipeline:
-  1. Export all `2024_bci*` dataset annotations (read-only)
-  2. Compile frequency table of annotated taxa
-  3. Filter to keep only taxa (at species, genus, and family levels) that actually appear in annotations
-  4. For every species-level taxon in the ground truth, ensure the corresponding genus and family are also included (even if no genus/family-level annotations exist)
-  5. Include an empty/no classification option
-  6. Run GBIF crosswalk to resolve backbone ↔ WCVP ID mapping
-  7. **Check ontology size:** count = number of unique options x 4 annotation types. Must be <= 4,000. If it exceeds, apply filters (minimum observation count, exclude unresolvable taxa)
-  8. Output: `bci_species_list.csv`
+- [x] Compile species list for Project A ontology
+- 277 taxa from crosswalk (2 duplicates merged) + 82 genera added + 32 families added = 391 total taxon options
+- Families: 53, Genera: 146, Species: 192 — plus 1 empty option = 392 options x 4 types = 1,568 (well within 4,000 limit)
+- WCVP matched: 390/391 (Cordiaceae unmatched — WCVP uses Boraginaceae; excluded from metrics)
+- Output: `output/02_species_list/bci_species_list.csv`, `species_list_summary.json`
 
 ### 0e. Create combined BCI dataset
 - [ ] Create a new combined dataset in Labelbox with new data rows pointing to the same Alliance Canada URLs
