@@ -19,10 +19,9 @@ The pipeline has two Labelbox projects:
 | **0d** | Derive species list for Project A ontology | ✅ Done |
 | **0e** | Create combined BCI dataset (7,717 rows) | ✅ Done |
 | **0f** | Create Project A ontology + project | ✅ Done |
-| **0g** | Import mask GT labels into Project A (Radio, Checklist, Raster Seg) | ✅ Done |
+| **0g+0j** | Import mask + BBOX GT labels into Project A (combined, single layer) | ✅ Done |
 | **0h** | Export image list for Pl@ntNet team | ✅ Done |
 | **0i** | Create Project B ontology + project | ✅ Done |
-| **0j** | Import BBOX ground truth labels into Project A | ⏳ Awaiting collaborator |
 | **0k** | Import train/val/test split metadata into combined dataset | ✅ Done |
 | **1a** | Parse Pl@ntNet predictions JSON | ⏳ Awaiting Pl@ntNet team |
 | **1b** | Apply GBIF ↔ WCVP crosswalk to predictions | ⏳ Pending |
@@ -130,20 +129,20 @@ python scripts/06_project_a/06_create_project_a.py
 
 Creates the `BCI Workshop - All Label Types v2` ontology and project in Labelbox. Ontology has 5 annotation types (Global Radio, Global Checklist Taxa, Global Checklist Organs, BBOX, Raster Segmentation) sharing 389 taxon options.
 
-### ✅ Phase 0g — Import ground truth labels
+### ✅ Phase 0g+0j — Import ground truth labels (combined)
 
 ```bash
-# Stage 1: demo dataset — review before proceeding
-python scripts/07_import_gt/07_import_ground_truth.py --stage 1
+# Stage 1: 3 images — review before proceeding
+python scripts/12_import_gt_combined/12_import_gt_combined.py --stage 1
 
 # Stage 2: one dataset — review before proceeding
-python scripts/07_import_gt/07_import_ground_truth.py --stage 2 --dataset "2024_bci_XXXX"
+python scripts/12_import_gt_combined/12_import_gt_combined.py --stage 2 --dataset "2024_bci_XXXX"
 
-# Stage 3: all datasets
-python scripts/07_import_gt/07_import_ground_truth.py --stage 3
+# Stage 3: all datasets (deletes existing labels first, then reimports)
+python scripts/12_import_gt_combined/12_import_gt_combined.py --stage 3 --confirm-delete
 ```
 
-Downloads each mask PNG, counts alpha pixels to find the dominant taxon, and imports Radio + Checklist + Raster Segmentation labels into Project A. Uses 30 parallel download workers with disk caching.
+Imports mask GT and BBOX GT as a **single combined label per image** so all annotations coexist on one layer in Project A. Downloads mask PNGs (cached), counts pixels to find the dominant taxon, and resolves BBOX labels via name/code matching. 4,866 labels imported: 16,858 mask annotations + 19,595 BBOX boxes. Stage 3 deletes all existing Project A labels before reimporting — `--confirm-delete` is required as a safety gate.
 
 ### ✅ Phase 0h — Export image list for Pl@ntNet team
 
@@ -195,13 +194,6 @@ python scripts/10_splits/10_import_splits.py
 ```
 
 Reads `input/boxes/bci_images_for_plantnet_w_split.csv` and upserts the reserved `split` enum metadata field on each data row in the combined dataset. 3,324 rows assigned (train=2,256 / valid=488 / test=580); 4,393 rows with no split are left unset. Deduplicates on `global_key` automatically.
-
-### ⏳ Phase 0j — Import BBOX ground truth labels _(awaiting collaborator)_
-
-A collaborator is computing tight bounding boxes from the existing masks using an iterative largest-interior-rectangle algorithm. Once the file arrives:
-
-- Import as `[Tool] BBOX: "Plant box"` annotations with nested Radio "Taxon" into Project A
-- Script to be written once the input format is known
 
 ### ⏳ Phase 1 — Pl@ntNet Predictions _(pending)_
 
