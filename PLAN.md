@@ -4,7 +4,7 @@ See [CLAUDE.md](CLAUDE.md) for safety rules and architectural context.
 
 ## Current Status
 
-Phase 0 (preparation, before Panama) — in progress
+Phase 0 complete. Phase 2 (embeddings) complete. Phase 1 (predictions) and Phase 3 (workshop) pending.
 
 ---
 
@@ -105,10 +105,17 @@ Phase 0 (preparation, before Panama) — in progress
 ## Phase 2: Embeddings (can run in parallel with Phase 1)
 
 ### 2a. Call /v2/embeddings for each image
-- [ ] Use the `/v2/embeddings` API route — one call per image, returns one global embedding vector
+- [x] Use the `/v2/embeddings` API route — one call per image, returns one global embedding vector
+- 7,717/7,717 images processed, 0 failures
+- Center-cropped to 1280×1280px before sending; 768-dimensional vectors
+- Pl@ntNet model version: `2026-02-17 (7.4)`
+- Output: `output/08_embeddings/embeddings.json`, per-image cache in `output/08_embeddings/cache/`
 
 ### 2b. Upload embeddings to combined dataset
-- [ ] Upload embedding vectors to Labelbox for the combined BCI dataset
+- [x] Upload embedding vectors to Labelbox for the combined BCI dataset
+- 7,717 vectors uploaded to custom embedding `PlantNet-v7.4-1280px` (id: `clofu0ci70702001bmn7gt2ns`)
+- Uploaded in 8 batches of 1,000; ingested asynchronously by Labelbox
+- Output: `output/08_embeddings/embeddings_upload.ndjson`, `upload_summary.json`
 
 ### 2c. Demo catalog similarity search
 - [ ] Demonstrate similarity search working within the combined dataset in Labelbox Catalog

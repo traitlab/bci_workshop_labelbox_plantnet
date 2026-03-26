@@ -106,6 +106,33 @@ python scripts/05_export_for_plantnet/05_export_for_plantnet.py
 
 Exports a CSV (`global_key`, `image_url`, `mission`) for the Pl@ntNet team to run multi-species survey predictions. Output: `output/05_export_for_plantnet/bci_images_for_plantnet.csv`.
 
+### Phase 2a — Get Pl@ntNet embeddings
+
+```bash
+# Test: 1 image, verbose output
+python scripts/08_embeddings/08_get_embeddings.py --test
+
+# Full run: all 7,717 images (~65 min at default 0.5s delay)
+python scripts/08_embeddings/08_get_embeddings.py
+
+# Custom delay
+python scripts/08_embeddings/08_get_embeddings.py --delay 1.0
+```
+
+Downloads each image from Alliance Canada, center-crops to 1280×1280px, and calls the Pl@ntNet `/v2/embeddings` API. Each image's embedding is cached to disk immediately — safe to stop and resume. Output: `output/08_embeddings/embeddings.json` (7,717 × 768-dimensional vectors).
+
+### Phase 2b — Upload embeddings to Labelbox
+
+```bash
+# Test: 5 rows only
+python scripts/08_embeddings/08b_upload_embeddings.py --test
+
+# Full upload
+python scripts/08_embeddings/08b_upload_embeddings.py
+```
+
+Maps embeddings to Labelbox data row IDs, writes an NDJSON file, and uploads to a custom Labelbox embedding (`PlantNet-v7.4-1280px`). Creates the embedding object if it doesn't exist. Vectors are ingested asynchronously by Labelbox — similarity search in Catalog activates once all vectors are indexed (requires ≥1,000).
+
 ## Configuration
 
 All pipeline settings are in [config.yaml](config.yaml):
