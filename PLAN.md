@@ -4,7 +4,7 @@ See [CLAUDE.md](CLAUDE.md) for safety rules and architectural context.
 
 ## Current Status
 
-Phase 0 complete except 0j (BBOX GT, awaiting collaborator). Phase 2 (embeddings) complete. Phase 1 (predictions) and Phase 3 (workshop) pending — also awaiting train/val/test splits from collaborator (Phase 1d).
+Phase 0 complete except 0j (BBOX GT, awaiting collaborator). Phase 0k (splits) complete. Phase 2 (embeddings) complete. Phase 1 (predictions) and Phase 3 (workshop) pending.
 
 ---
 
@@ -72,6 +72,14 @@ Phase 0 complete except 0j (BBOX GT, awaiting collaborator). Phase 2 (embeddings
 - They will run the multi-species predictions and return a JSON with results
 - We do NOT call the survey API ourselves (rate limit constraints)
 
+### 0k. Import train/val/test split metadata into combined dataset
+- [x] Import split assignments as reserved `split` enum metadata field on combined dataset data rows
+- Input: `input/boxes/bci_images_for_plantnet_w_split.csv` (global_key, image_url, mission, split)
+- 3,324 rows assigned (train=2,256 / valid=488 / test=580); 4,393 rows have no split (left unset)
+- 467 duplicate global_keys in CSV — all consistent (same split value), deduplicated on import
+- Uses reserved org-level `split` enum schema (id: `cko8sbczn0002h2dkdaxb5kal`)
+- Script: `scripts/10_splits/10_import_splits.py`
+
 ### 0j. Import BBOX ground truth labels into Project A
 - [ ] Import BBOX annotations derived from masks using largest interior rectangle algorithm
 - Awaiting deliverable from collaborator: a file mapping each data row to its BBOX coordinates + taxon
@@ -105,14 +113,7 @@ Phase 0 complete except 0j (BBOX GT, awaiting collaborator). Phase 2 (embeddings
 ### 1c. Import predictions into Project A Model Run
 - [ ] Import as BBOX + nested Radio + global Radio/Checklist annotations
 
-### 1d. Import train/val/test data row splits
-- [ ] Import split assignments into Labelbox as metadata on the combined dataset
-- Awaiting deliverable from collaborator: a file mapping each data row (global_key) to its split (train / val / test)
-- Splits were determined externally based on the same mask-derived data used for predictions
-- Will add a `split` string metadata field to each data row in `BCI Workshop - Drone Photos`
-- Script to be written once the input format is known
-
-### 1e. Review metrics in Labelbox UI
+### 1d. Review metrics in Labelbox UI
 - [ ] Verify Radio classification metrics (accuracy, per-class F1, confusion matrix) appear correctly
 
 ---

@@ -23,11 +23,11 @@ The pipeline has two Labelbox projects:
 | **0h** | Export image list for Pl@ntNet team | ✅ Done |
 | **0i** | Create Project B ontology + project | ✅ Done |
 | **0j** | Import BBOX ground truth labels into Project A | ⏳ Awaiting collaborator |
+| **0k** | Import train/val/test split metadata into combined dataset | ✅ Done |
 | **1a** | Parse Pl@ntNet predictions JSON | ⏳ Awaiting Pl@ntNet team |
 | **1b** | Apply GBIF ↔ WCVP crosswalk to predictions | ⏳ Pending |
 | **1c** | Import predictions into Project A Model Run | ⏳ Pending |
-| **1d** | Import train/val/test data row splits | ⏳ Awaiting collaborator |
-| **1e** | Review metrics in Labelbox UI | ⏳ Pending |
+| **1d** | Review metrics in Labelbox UI | ⏳ Pending |
 | **2a** | Get Pl@ntNet embeddings for all 7,717 images | ✅ Done |
 | **2b** | Upload embeddings to Labelbox (similarity search) | ✅ Done |
 | **2c** | Demo Catalog similarity search | ⏳ Pending |
@@ -184,6 +184,18 @@ python scripts/08_embeddings/08b_upload_embeddings.py
 
 Maps embeddings to Labelbox data row IDs, writes an NDJSON file, and uploads to a custom Labelbox embedding (`PlantNet-v7.4-1280px`). Creates the embedding object if it doesn't exist. Vectors are ingested asynchronously — similarity search in Catalog activates once all vectors are indexed (requires ≥1,000).
 
+### ✅ Phase 0k — Import train/val/test split metadata
+
+```bash
+# Test: 5 rows only
+python scripts/10_splits/10_import_splits.py --test
+
+# Full run
+python scripts/10_splits/10_import_splits.py
+```
+
+Reads `input/boxes/bci_images_for_plantnet_w_split.csv` and upserts the reserved `split` enum metadata field on each data row in the combined dataset. 3,324 rows assigned (train=2,256 / valid=488 / test=580); 4,393 rows with no split are left unset. Deduplicates on `global_key` automatically.
+
 ### ⏳ Phase 0j — Import BBOX ground truth labels _(awaiting collaborator)_
 
 A collaborator is computing tight bounding boxes from the existing masks using an iterative largest-interior-rectangle algorithm. Once the file arrives:
@@ -191,19 +203,14 @@ A collaborator is computing tight bounding boxes from the existing masks using a
 - Import as `[Tool] BBOX: "Plant box"` annotations with nested Radio "Taxon" into Project A
 - Script to be written once the input format is known
 
-### ⏳ Phase 1 — Pl@ntNet Predictions + Splits _(pending)_
+### ⏳ Phase 1 — Pl@ntNet Predictions _(pending)_
 
-Waiting for two deliverables:
-- **Pl@ntNet team** — multi-species predictions JSON
-- **Collaborator** — train/val/test split assignments per data row
-
-Once received:
+Waiting for the multi-species predictions JSON from the Pl@ntNet team. Once received:
 
 1. **1a** — Parse and validate the predictions JSON
 2. **1b** — Apply GBIF ↔ WCVP crosswalk to align taxon IDs
 3. **1c** — Import predictions into Project A as a Model Run
-4. **1d** — Import train/val/test splits as a `split` metadata field on the combined dataset
-5. **1e** — Review Radio classification metrics in Labelbox UI
+4. **1d** — Review Radio classification metrics in Labelbox UI
 
 ### ⏳ Phase 3 — Workshop: Botanist Labelling _(pending)_
 
