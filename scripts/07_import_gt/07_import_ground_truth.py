@@ -129,21 +129,26 @@ def build_label(row: dict, crosswalk: dict, wcvp_names: dict,
     if not mask_entries_info:
         return None
 
-    # Download all masks for this image (sequentially within image, parallelized across images)
-    # For multi-answer masks (2+ taxa per mask): use the mask PNG once with the first taxon,
-    # add all taxa to pixel counts and taxa_present. This avoids "duplicate mask" errors.
+    # Deduplicate by URL: multiple objects can share the same mask PNG. Merge their taxa.
+    url_to_wcvp_ids: dict[str, list[str]] = defaultdict(list)
+    for info in mask_entries_info:
+        for wid in info["wcvp_ids"]:
+            if wid not in url_to_wcvp_ids[info["url"]]:
+                url_to_wcvp_ids[info["url"]].append(wid)
+
+    # Download each unique mask PNG once, count pixels for all associated taxa.
+    # Only one annotation per PNG to avoid "Found duplicate mask" errors.
     mask_entries = []
     taxa_pixel_counts: dict[str, int] = defaultdict(int)
-    for info in mask_entries_info:
-        mask_bytes = download_mask(info["url"], api_key, cache_dir)
+    for url, wcvp_ids in url_to_wcvp_ids.items():
+        mask_bytes = download_mask(url, api_key, cache_dir)
         if mask_bytes is None:
             continue
         pixel_count = count_mask_pixels(mask_bytes)
         if pixel_count == 0:
             continue
-        px_per_taxon = max(1, pixel_count // len(info["wcvp_ids"]))
-        # Only create one mask annotation per PNG (first taxon), count pixels for all
-        for i, wcvp_id in enumerate(info["wcvp_ids"]):
+        px_per_taxon = max(1, pixel_count // len(wcvp_ids))
+        for i, wcvp_id in enumerate(wcvp_ids):
             taxa_pixel_counts[wcvp_id] += px_per_taxon
             if i == 0:
                 mask_entries.append({
@@ -161,13 +166,13 @@ def build_label(row: dict, crosswalk: dict, wcvp_names: dict,
 
     annotations = [
         lb_types.ClassificationAnnotation(
-            name="Dominant taxon",
+            name="Taxon",
             value=lb_types.Radio(
                 answer=lb_types.ClassificationAnswer(name=dominant_name)
             ),
         ),
         lb_types.ClassificationAnnotation(
-            name="Taxa present",
+            name="Taxa",
             value=lb_types.Checklist(
                 answer=[
                     lb_types.ClassificationAnswer(name=wcvp_names[wid])
@@ -191,9 +196,9 @@ def build_label(row: dict, crosswalk: dict, wcvp_names: dict,
                 ),
                 classifications=[
                     lb_types.ClassificationAnnotation(
-                        name="Taxon",
-                        value=lb_types.Radio(
-                            answer=lb_types.ClassificationAnswer(name=wcvp_names[wcvp_id])
+                        name="Taxa",
+                        value=lb_types.Checklist(
+                            answer=[lb_types.ClassificationAnswer(name=wcvp_names[wcvp_id])]
                         ),
                     )
                 ],

@@ -1,12 +1,14 @@
 """
 Phase 0f — Create Project A ontology and project in Labelbox.
 
-Creates a single unified ontology with 4 annotation types sharing the same
-taxon option list (from bci_species_list.csv):
-  - [Global] Radio: "Dominant taxon"
-  - [Global] Checklist: "Taxa present"
-  - [Tool] BBOX: "Plant box" with nested Radio "Taxon"
-  - [Tool] RASTER_SEGMENTATION: "Plant mask" with nested Radio "Taxon"
+Creates a single unified ontology with 5 annotation types:
+  - [Global] Radio: "Taxon"              — dominant taxon per image (primary metric)
+  - [Global] Checklist: "Taxa"           — all taxa present per image
+  - [Global] Checklist: "Organs"         — Leaf/Flower/Fruit/Branch/Bark
+  - [Tool] BBOX: "Plant"                 — with nested Radio "Taxon" + Checklist "Organs"
+  - [Tool] RASTER_SEGMENTATION: "Plant"  — with nested Checklist "Taxa"
+
+Taxon options from bci_species_list.csv (species + genus + family, alphabetical).
 
 Creates a project, connects the ontology, and sends data rows from the
 combined dataset.
@@ -82,17 +84,30 @@ def main():
         print(f"  Ontology already exists: {existing_ontology.uid}")
         ontology = existing_ontology
     else:
+        organ_options = [
+            lb.Option(value="leaf", label="Leaf"),
+            lb.Option(value="flower", label="Flower"),
+            lb.Option(value="fruit", label="Fruit"),
+            lb.Option(value="branch", label="Branch"),
+            lb.Option(value="bark", label="Bark"),
+        ]
+
         ontology_builder = lb.OntologyBuilder(
             classifications=[
                 lb.Classification(
                     class_type=lb.Classification.Type.RADIO,
-                    name="Dominant taxon",
+                    name="Taxon",
                     options=list(options),
                 ),
                 lb.Classification(
                     class_type=lb.Classification.Type.CHECKLIST,
-                    name="Taxa present",
+                    name="Taxa",
                     options=list(options),
+                ),
+                lb.Classification(
+                    class_type=lb.Classification.Type.CHECKLIST,
+                    name="Organs",
+                    options=organ_options,
                 ),
             ],
             tools=[
@@ -105,6 +120,11 @@ def main():
                             name="Taxon",
                             options=list(options),
                         ),
+                        lb.Classification(
+                            class_type=lb.Classification.Type.CHECKLIST,
+                            name="Organs",
+                            options=organ_options,
+                        ),
                     ],
                 ),
                 lb.Tool(
@@ -112,8 +132,8 @@ def main():
                     name="Plant mask",
                     classifications=[
                         lb.Classification(
-                            class_type=lb.Classification.Type.RADIO,
-                            name="Taxon",
+                            class_type=lb.Classification.Type.CHECKLIST,
+                            name="Taxa",
                             options=list(options),
                         ),
                     ],
