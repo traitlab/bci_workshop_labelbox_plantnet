@@ -71,13 +71,18 @@ Phase 0 (preparation, before Panama) — in progress
 - They will run the multi-species predictions and return a JSON with results
 - We do NOT call the survey API ourselves (rate limit constraints)
 
-### 0i. Create Project B ontology
-- [ ] Create Project B ontology (BBOX only, with nested Radio "Species")
-- Taxon list source: existing ontology `BCI close-up photo segmentation (espanol)`
-- Adaptations:
-  - Replace nested classification `value` (currently GBIF backbone Accepted ID) with WCVP-backbone GBIF ID (what Pl@ntNet returns)
-  - Keep genus-level and family-level entries for all species
-  - This taxon list is specific to Project B and differs from Project A's list
+### 0i. Create Project B ontology + project
+- [x] Create Project B ontology and project in Labelbox
+- Project/ontology name: `BCI Workshop - Botanist Labelling`
+- Taxon list source: ontology `cm9fy6wm00xis073obwoa5228` (`BCI close-up photo segmentation - single list (espanol)`) — 1,931 options
+- GBIF backbone IDs replaced with WCVP GBIF IDs: 1,914 EXACT, 7 FUZZY, 10 OVERRIDE (families synonymised in WCVP)
+- 1,880 unique taxon options after deduplication on WCVP ID; sorted alphabetically by label
+- Ontology structure:
+  - `[Tool] BBOX: "Planta"` with nested:
+    - Radio `"Taxón"` — species/genus/family, WCVP IDs as values
+    - Checklist `"Órgano"` — Flor (flower) / Fruta (fruit)
+- Crosswalk: `output/09_project_b/project_b_taxon_crosswalk.csv`
+- Data rows not yet sent — will be done via Catalog Slices in Phase 3
 
 ---
 

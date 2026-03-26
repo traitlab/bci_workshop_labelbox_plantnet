@@ -13,8 +13,11 @@ labelbox:
   # Project A (all label types)
   project_a_name: BCI Workshop - All Label Types v2
   project_a_ontology_name: BCI Workshop - All Label Types v2
-  # Name of the existing espanol ontology (source for Project B taxon list)
-  espanol_ontology_name: BCI close-up photo segmentation (espanol)
+  # Source ontology ID for Project B taxon list
+  project_b_source_ontology_id: cm9fy6wm00xis073obwoa5228
+  # Project B (botanist labelling)
+  project_b_name: BCI Workshop - Botanist Labelling
+  project_b_ontology_name: BCI Workshop - Botanist Labelling
   # Name of the new combined dataset to create (Phase 0e)
   combined_dataset_name: BCI Workshop - Drone Photos
 
