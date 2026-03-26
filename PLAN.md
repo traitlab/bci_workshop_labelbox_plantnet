@@ -44,23 +44,25 @@ Phase 0 (preparation, before Panama) — in progress
 - Never move or copy existing data rows — created new ones
 
 ### 0f. Create Project A ontology + project
-- [x] Create Project A ontology and project in Labelbox
-- Project/ontology name: `BCI Workshop - All Label Types`
+- [x] Create Project A ontology and project in Labelbox (v2)
+- Project/ontology name: `BCI Workshop - All Label Types v2`
 - 389 unique taxon options (391 taxa minus 2 WCVP duplicates: Hippocrateaceae=Celastraceae, Tetragastris=Protium)
 - Option labels use `wcvp_canonical_name`, values use `wcvp_gbif_id`
-- Ontology has 4 annotation types:
-  - `[Global] Radio: "Dominant taxon"` — primary metric tool
-  - `[Global] Checklist: "Taxa present"` — presence/absence
-  - `[Tool] BBOX: "Plant box"` with nested Radio "Taxon"
-  - `[Tool] RASTER_SEGMENTATION: "Plant mask"` with nested Radio "Taxon"
+- Ontology has 5 annotation types:
+  - `[Global] Radio: "Taxon"` — dominant taxon per image (primary metric tool)
+  - `[Global] Checklist: "Taxa"` — all taxa present per image
+  - `[Global] Checklist: "Organs"` — Leaf / Flower / Fruit / Branch / Bark
+  - `[Tool] BBOX: "Plant box"` with nested Radio "Taxon" + Checklist "Organs"
+  - `[Tool] RASTER_SEGMENTATION: "Plant mask"` with nested Checklist "Taxa"
 - Combined dataset (7,717 rows) sent to project
+- `original_labelbox_url` string metadata added to 7,268 rows pointing back to original Labelbox data row
 
 ### 0g. Import ground truth labels into Project A
 - [x] Import existing mask labels + derived Radio/Checklist annotations
 - Downloads each mask PNG, counts alpha pixels to find dominant taxon per image
-- Radio "Dominant taxon" = max-pixel taxon; Checklist "Taxa present" = all taxa; Plant mask = raster seg per object
-- Masks with no taxon assignment skipped; taxa with no WCVP match skipped
-- 6,380 masks with taxa across 7,264 labeled images (of 7,717 total)
+- Global Radio "Taxon" = max-pixel taxon; Global Checklist "Taxa" = all taxa; "Plant mask" raster seg with nested Checklist "Taxa"
+- Masks with no taxon assignment skipped; taxa with no WCVP match skipped; duplicate mask URLs deduplicated and taxa merged
+- 5,239 labels imported into `BCI Workshop - All Label Types v2` (of 7,268 labeled images; remainder had no WCVP-matched taxa)
 
 ### 0h. Export dataset JSON for Pl@ntNet team
 - [x] Export image list CSV for Pl@ntNet team
