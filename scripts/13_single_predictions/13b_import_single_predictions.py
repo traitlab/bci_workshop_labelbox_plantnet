@@ -293,6 +293,10 @@ def main():
     model_run = get_or_create_model_run(client, project, MODEL_NAME, MODEL_RUN_NAME)
     print(f"  Model run ready: {model_run.uid}")
 
+    # Step 4b: Set IOU threshold to 0 (required for classification metrics)
+    model_run.update_config({"iou_threshold": 0.0})
+    print("  IOU threshold set to 0 (required for classification metrics)")
+
     # Step 5: Build labels
     print("\nStep 5 - Building prediction labels...")
     labels        = []

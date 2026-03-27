@@ -126,8 +126,8 @@ Two model runs will be created in Project A for comparison:
 - Script: `scripts/13_single_predictions/13b_import_single_predictions.py`
 
 ### 1d-single. Review metrics in Labelbox UI
-- [ ] Verify Radio classification metrics appear correctly in Project A Model Run
-- Data confirmed: GT + predictions present for ~39% of model run rows; feature schema IDs match
+- [~] Labelbox automatic classification metrics not available for this setup (investigated exhaustively: IOU=0, raw NDJSON, few classes — all tested, no auto-metrics)
+- Workaround: use the confusion matrix view per-image in the model run UI, or compute metrics externally from the exported GT/prediction data
 
 ### 1a-multi. Parse multi-species predictions JSON _(awaiting Pl@ntNet team)_
 - [ ] Parse and validate the multi-species predictions JSON from Pl@ntNet team
