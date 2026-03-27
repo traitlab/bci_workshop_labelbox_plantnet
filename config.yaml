@@ -27,6 +27,8 @@ plantnet:
   identify_nb_results: 5
   identify_organs: auto
   identify_lang: en
+  single_model_name: Pl@ntNet Single - Central America
+  single_model_run_name: v7.4-2026-03-27
 
 folders:
   output: output

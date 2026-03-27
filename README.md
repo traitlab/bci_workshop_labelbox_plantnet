@@ -23,9 +23,9 @@ The pipeline has two Labelbox projects:
 | **0h** | Export image list for Pl@ntNet team | ✅ Done |
 | **0i** | Create Project B ontology + project | ✅ Done |
 | **0k** | Import train/val/test split metadata into combined dataset | ✅ Done |
-| **1a-single** | Get single-species predictions (`k-central-america`, 1 credit/image) | 🟡 Ready to run |
-| **1b+1c-single** | Crosswalk + import into Project A Model Run (Radio Taxon + Organs) | ⏳ Pending |
-| **1d-single** | Review single-species metrics in Labelbox UI | ⏳ Pending |
+| **1a-single** | Get single-species predictions (`k-central-america`, 1 credit/image) | ✅ Done |
+| **1b+1c-single** | Crosswalk + import into Project A Model Run (Radio Taxon + Organs) | ✅ Done |
+| **1d-single** | Review single-species metrics in Labelbox UI | 🟡 In progress |
 | **1a-multi** | Parse multi-species predictions JSON from Pl@ntNet team | ⏳ Awaiting team |
 | **1b+1c-multi** | Crosswalk + import multi-species Model Run | ⏳ Pending |
 | **1d-multi** | Compare single vs multi-species metrics | ⏳ Pending |

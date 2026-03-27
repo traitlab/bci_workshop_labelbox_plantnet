@@ -136,41 +136,44 @@ def parse_response(response: dict, global_key: str, image_url: str,
     """
     Extract top-N results and organ predictions from API response.
     Each result entry: {rank, score, scientific_name, family, genus, gbif_id, powo_id}
-    Organs: list of unique organ strings from all results (e.g. ["leaf", "flower"])
+    Organs: list of unique organ strings from predictedOrgans (e.g. ["leaf", "flower"])
     """
-    results = []
+    # Organs are in a separate top-level array, not nested per result
     organs_seen = []
-
-    for rank, r in enumerate(response.get("results", []), start=1):
-        sp = r.get("species", {})
-        gbif  = r.get("gbif",  {})
-        powo  = r.get("powo",  {})
-        organ = r.get("organ", None)
-
-        results.append({
-            "rank":           rank,
-            "score":          r.get("score"),
-            "scientific_name": sp.get("scientificNameWithoutAuthor"),
-            "scientific_name_full": sp.get("scientificName"),
-            "family":         sp.get("family",  {}).get("scientificNameWithoutAuthor"),
-            "genus":          sp.get("genus",   {}).get("scientificNameWithoutAuthor"),
-            "gbif_id":        gbif.get("id"),
-            "powo_id":        powo.get("id"),
-            "organ":          organ,
-        })
+    for po in response.get("predictedOrgans", []):
+        organ = po.get("organ")
         if organ and organ not in organs_seen:
             organs_seen.append(organ)
 
+    results = []
+    for rank, r in enumerate(response.get("results", []), start=1):
+        sp   = r.get("species", {})
+        gbif = r.get("gbif",   {})
+        powo = r.get("powo",   {})
+
+        results.append({
+            "rank":                rank,
+            "score":               r.get("score"),
+            "scientific_name":     sp.get("scientificNameWithoutAuthor"),
+            "scientific_name_full": sp.get("scientificName"),
+            "family":              sp.get("family", {}).get("scientificNameWithoutAuthor"),
+            "genus":               sp.get("genus",  {}).get("scientificNameWithoutAuthor"),
+            "gbif_id":             gbif.get("id"),
+            "powo_id":             powo.get("id"),
+        })
+
+    best_match = results[0]["scientific_name"] if results else None
+
     return {
-        "global_key":     global_key,
-        "image_url":      image_url,
-        "best_match":     response.get("bestMatch"),
+        "global_key":        global_key,
+        "image_url":         image_url,
+        "best_match":        best_match,
         "remaining_credits": response.get("remainingIdentificationRequests"),
-        "original_width":  orig_width,
-        "original_height": orig_height,
-        "crop_size":       crop_size,
-        "results":        results,
-        "organs":         organs_seen,
+        "original_width":    orig_width,
+        "original_height":   orig_height,
+        "crop_size":         crop_size,
+        "results":           results,
+        "organs":            organs_seen,
     }
 
 
@@ -267,9 +270,8 @@ def main():
                 print(f"  Results:     {len(entry['results'])} species")
                 for r in entry["results"]:
                     print(f"    #{r['rank']} {r['scientific_name']} "
-                          f"(score={r['score']:.4f}, organ={r['organ']}, "
-                          f"gbif={r['gbif_id']})")
-                print(f"  Organs seen: {entry['organs']}")
+                          f"(score={r['score']:.4f}, gbif={r['gbif_id']})")
+                print(f"  Organs:      {entry['organs']}")
                 print(f"  Credits remaining: {last_remaining}")
             elif (i + 1) % 100 == 0 or i == 0:
                 cr = f", {last_remaining} credits remaining" if last_remaining else ""

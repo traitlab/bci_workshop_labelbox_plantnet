@@ -106,22 +106,28 @@ Two model runs will be created in Project A for comparison:
 - **Multi-species** (survey tiles endpoint, sent to Pl@ntNet team) — awaiting team JSON
 
 ### 1a-single. Get single-species predictions from Pl@ntNet API
-- [ ] Call `/v2/identify/k-central-america` for all 7,717 images (1 credit each)
+- [x] Call `/v2/identify/k-central-america` for all 7,717 images (1 credit each)
 - Center-crop to 1280×1280px, same pattern as embeddings script
-- Returns top-5 species + organ prediction per image
+- Returns top-5 species + organ prediction per image; organ from `predictedOrgans[]` array
 - Per-image cache → safe to stop and resume
+- 7,679 cached (38 errors: API returned no species), 0 failures
+- Pl@ntNet model version: `2026-02-17 (7.4)`
 - Script: `scripts/13_single_predictions/13a_get_single_predictions.py`
 - Output: `output/13_single_predictions/predictions.json`, per-image cache
 
 ### 1b+1c-single. Apply crosswalk and import into Project A Model Run
-- [ ] Resolve Pl@ntNet GBIF IDs → WCVP canonical names via crosswalk
-- [ ] Import into Model Run `PlantNet Single-Species (k-central-america)`:
+- [x] Resolve Pl@ntNet GBIF IDs → WCVP canonical names via crosswalk
+- [x] Import into Model Run `Pl@ntNet Single - Central America` / run `v7.4-2026-03-27`:
   - [Global] Radio "Taxon" = top-1 species with confidence score
   - [Global] Checklist "Organs" = predicted organs (Leaf/Flower/Fruit/Branch/Bark)
+- 3,721 / 7,679 predictions resolved (48.5% coverage — species outside ontology excluded)
+- GT labels linked via `upsert_labels(project_id=...)`, splits assigned
+- Model/run names in `config.yaml` under `plantnet.single_model_name` / `single_model_run_name`
 - Script: `scripts/13_single_predictions/13b_import_single_predictions.py`
 
 ### 1d-single. Review metrics in Labelbox UI
 - [ ] Verify Radio classification metrics appear correctly in Project A Model Run
+- Data confirmed: GT + predictions present for ~39% of model run rows; feature schema IDs match
 
 ### 1a-multi. Parse multi-species predictions JSON _(awaiting Pl@ntNet team)_
 - [ ] Parse and validate the multi-species predictions JSON from Pl@ntNet team

@@ -34,15 +34,13 @@ from pathlib import Path
 
 import labelbox as lb
 import labelbox.types as lb_types
+from labelbox.schema.model_run import DataSplit
 from dotenv import load_dotenv
 import yaml
 
 # ── Safety guard ──────────────────────────────────────────────────────────────
 PROJECT_A_NAME = "BCI Workshop - All Label Types"
 PROJECT_A_UID  = "cmn6iicta01w3070sggxmf00q"
-
-MODEL_NAME     = "PlantNet Single-Species"
-MODEL_RUN_NAME = "PlantNet Single-Species (k-central-america)"
 
 BATCH_SIZE     = 100
 
@@ -196,26 +194,38 @@ def build_label(entry: dict, gbif_to_wcvp: dict,
     }
 
 
-def get_or_create_model_run(client: lb.Client, project: lb.Project) -> lb.ModelRun:
+def load_splits(splits_csv: Path) -> dict:
+    """Load split CSV -> {combined_global_key: DataSplit}. Deduplicates on first occurrence."""
+    SPLIT_MAP = {"train": DataSplit.TRAINING, "valid": DataSplit.VALIDATION, "test": DataSplit.TEST}
+    result = {}
+    with open(splits_csv, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            gk = "comb_" + row["global_key"]
+            split = row.get("split", "").strip().lower()
+            if gk not in result and split in SPLIT_MAP:
+                result[gk] = SPLIT_MAP[split]
+    return result
+
+
+def get_or_create_model_run(client: lb.Client, project: lb.Project,
+                             model_name: str, run_name: str) -> lb.ModelRun:
     """Find or create Model and ModelRun by name."""
-    # Find or create model
-    model = next((m for m in client.get_models() if m.name == MODEL_NAME), None)
+    model = next((m for m in client.get_models() if m.name == model_name), None)
     if model is None:
-        print(f"  Creating model '{MODEL_NAME}'...")
+        print(f"  Creating model '{model_name}'...")
         model = client.create_model(
-            name=MODEL_NAME,
+            name=model_name,
             ontology_id=project.ontology().uid,
         )
     else:
-        print(f"  Found model '{MODEL_NAME}' ({model.uid})")
+        print(f"  Found model '{model_name}' ({model.uid})")
 
-    # Find or create model run
-    run = next((r for r in model.model_runs() if r.name == MODEL_RUN_NAME), None)
+    run = next((r for r in model.model_runs() if r.name == run_name), None)
     if run is None:
-        print(f"  Creating model run '{MODEL_RUN_NAME}'...")
-        run = model.create_model_run(MODEL_RUN_NAME)
+        print(f"  Creating model run '{run_name}'...")
+        run = model.create_model_run(run_name)
     else:
-        print(f"  Found model run '{MODEL_RUN_NAME}' ({run.uid})")
+        print(f"  Found model run '{run_name}' ({run.uid})")
 
     return run
 
@@ -226,6 +236,8 @@ def main():
     )
     parser.add_argument("--test", action="store_true",
                         help="Process first 5 predictions only")
+    parser.add_argument("--link-gt-only", action="store_true",
+                        help="Only link GT labels to existing model run (skip prediction upload)")
     args = parser.parse_args()
 
     load_dotenv()
@@ -235,11 +247,14 @@ def main():
     if not api_key:
         sys.exit("ERROR: LABELBOX_API_KEY not found in .env")
 
-    crosswalk_path = Path(config["folders"]["crosswalk"])      / "gbif_crosswalk.csv"
-    species_path   = Path(config["folders"]["species_list"])   / "bci_species_list.csv"
+    crosswalk_path = Path(config["folders"]["crosswalk"])          / "gbif_crosswalk.csv"
+    species_path   = Path(config["folders"]["species_list"])       / "bci_species_list.csv"
     pred_path      = Path(config["folders"]["single_predictions"]) / "predictions.json"
     output_dir     = Path(config["folders"]["single_predictions"])
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    MODEL_NAME     = config["plantnet"]["single_model_name"]
+    MODEL_RUN_NAME = config["plantnet"]["single_model_run_name"]
 
     if not pred_path.exists():
         sys.exit(f"ERROR: {pred_path} not found. Run 13a first.")
@@ -247,7 +262,7 @@ def main():
     # Step 1: Load crosswalk
     print("Step 1 - Loading crosswalk and species list...")
     gbif_to_wcvp, wcvp_to_name, name_to_wcvp = load_crosswalk(crosswalk_path, species_path)
-    print(f"  {len(gbif_to_wcvp)} GBIF→WCVP mappings, {len(wcvp_to_name)} WCVP names")
+    print(f"  {len(gbif_to_wcvp)} GBIF->WCVP mappings, {len(wcvp_to_name)} WCVP names")
 
     # Step 2: Load predictions
     print("\nStep 2 - Loading predictions...")
@@ -260,7 +275,7 @@ def main():
 
     # Step 3: Connect to Labelbox, verify Project A
     print("\nStep 3 - Connecting to Labelbox...")
-    client  = lb.Client(api_key=api_key)
+    client  = lb.Client(api_key=api_key, enable_experimental=True)
     project = next((p for p in client.get_projects() if p.name == PROJECT_A_NAME), None)
     if project is None:
         sys.exit(f"ERROR: Project '{PROJECT_A_NAME}' not found.")
@@ -273,8 +288,9 @@ def main():
     print(f"  Project A confirmed: '{project.name}' ({project.uid})")
 
     # Step 4: Get or create Model Run
+    # If --link-gt-only, skip steps 1-5 and jump straight to GT linking
     print("\nStep 4 - Setting up Model Run...")
-    model_run = get_or_create_model_run(client, project)
+    model_run = get_or_create_model_run(client, project, MODEL_NAME, MODEL_RUN_NAME)
     print(f"  Model run ready: {model_run.uid}")
 
     # Step 5: Build labels
@@ -312,6 +328,31 @@ def main():
     model_run.upsert_data_rows(global_keys=resolved_gks)
     print(f"  Registered {len(resolved_gks)} data rows.")
 
+    # Step 6b: Link ground truth labels from Project A to the model run
+    # Without this, the model run has no GT and metrics cannot be computed.
+    print(f"\nStep 6b - Linking ground truth labels from Project A...")
+    model_run.upsert_labels(project_id=project.uid)
+    print(f"  Ground truth labels linked.")
+
+    # Step 6c: Assign splits to model run data rows
+    splits_csv = Path("input/boxes/bci_images_for_plantnet_w_split.csv")
+    if splits_csv.exists():
+        print(f"\nStep 6c - Assigning splits to model run...")
+        gk_to_split = load_splits(splits_csv)
+        all_pred_gks = ["comb_" + e["global_key"] for e in entries]
+        split_groups: dict = {}
+        for gk in all_pred_gks:
+            ds = gk_to_split.get(gk)
+            if ds:
+                split_groups.setdefault(ds, []).append(gk)
+        for ds, gks in split_groups.items():
+            model_run.assign_data_rows_to_split(global_keys=gks, split=ds)
+            print(f"  {ds.value}: {len(gks)}")
+
+    if args.link_gt_only:
+        print("\nDone (--link-gt-only: skipped prediction upload).")
+        return
+
     # Step 7: Upload predictions in batches
     print(f"\nStep 7 - Uploading {len(labels)} predictions in batches of {BATCH_SIZE}...")
     run_ts   = int(time.time())
@@ -336,17 +377,27 @@ def main():
                 print(f"    ERROR: {e}")
 
     # Step 8: Save summary
+    total_predictions = len(entries)
+    coverage_pct = 100 * total_ok / total_predictions if total_predictions else 0
     summary = {
-        "model_name":      MODEL_NAME,
-        "model_run_name":  MODEL_RUN_NAME,
-        "model_run_id":    model_run.uid,
-        "labels_built":    len(labels),
-        "labels_ok":       total_ok,
-        "labels_errors":   total_err,
-        "unresolved":      unresolved,
-        "no_results":      no_results,
+        "model_name":         MODEL_NAME,
+        "model_run_name":     MODEL_RUN_NAME,
+        "model_run_id":       model_run.uid,
+        "total_predictions":  total_predictions,
+        "labels_built":       len(labels),
+        "labels_ok":          total_ok,
+        "labels_errors":      total_err,
+        "unresolved":         unresolved,
+        "no_results":         no_results,
+        "coverage_pct":       round(coverage_pct, 1),
+        "coverage_note":      (
+            f"Labelbox metrics are computed only on the {total_ok} images with a "
+            f"resolvable prediction ({coverage_pct:.1f}% of {total_predictions} total). "
+            f"{unresolved + no_results} images have no prediction (species outside ontology "
+            f"or no API result) and are excluded from metrics — performance may be inflated."
+        ),
         "resolution_methods": method_counts,
-        "test_mode":       args.test,
+        "test_mode":          args.test,
     }
     summary_path = output_dir / "import_summary.json"
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -356,7 +407,10 @@ def main():
     print(f"{'=' * 55}")
     print(f"  Model run:       {MODEL_RUN_NAME}")
     print(f"  Model run ID:    {model_run.uid}")
-    print(f"  Uploaded OK:     {total_ok} / {len(labels)}")
+    print(f"  Uploaded OK:     {total_ok} / {total_predictions} "
+          f"({coverage_pct:.1f}% coverage)")
+    print(f"  Unresolved:      {unresolved + no_results} "
+          f"(excluded from metrics — see import_summary.json)")
     print(f"  Upload errors:   {total_err}")
     print(f"  Summary:         {summary_path}")
     print(f"{'=' * 55}")
