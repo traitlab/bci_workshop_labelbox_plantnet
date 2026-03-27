@@ -6,7 +6,7 @@ A pipeline for a botanical working group in Panama. Integrates Pl@ntNet predicti
 
 The pipeline has two Labelbox projects:
 
-- **Project A — Benchmark & Tracking:** Imports existing ground truth mask labels and Pl@ntNet model predictions. Computes Radio classification metrics to benchmark model performance.
+- **Project A — Benchmark & Tracking:** Imports existing ground truth mask labels and Pl@ntNet model predictions as Model Runs for comparison.
 - **Project B — Botanist Labelling:** Botanists label/correct species identifications. Model predictions are **never** shown to avoid AI bias.
 
 ## ✅ Status
@@ -158,6 +158,57 @@ python scripts/05_export_for_plantnet/05_export_for_plantnet.py
 
 Exports a CSV (`global_key`, `image_url`, `mission`) for the Pl@ntNet team to run multi-species survey predictions. Output: `output/05_export_for_plantnet/bci_images_for_plantnet.csv`.
 
+### ✅ Phase 0i — Create Project B
+
+```bash
+python scripts/09_project_b/09_create_project_b.py
+```
+
+Creates the `BCI Workshop - Botanist Labelling` ontology and project in Labelbox. Ontology has a single BBOX tool `"Planta"` with nested Radio `"Taxón"` (1,880 taxon options, WCVP IDs) and Checklist `"Órgano"` (Flor / Fruta). Data rows are not sent yet — they will be sent via Catalog Slices in Phase 3.
+
+### ✅ Phase 0k — Import train/val/test split metadata
+
+```bash
+# Test: 5 rows only
+python scripts/10_splits/10_import_splits.py --test
+
+# Full run
+python scripts/10_splits/10_import_splits.py
+```
+
+Reads `input/boxes/bci_images_for_plantnet_w_split.csv` and upserts the reserved `split` enum metadata field on each data row in the combined dataset. 3,324 rows assigned (train=2,256 / valid=488 / test=580); 4,393 rows with no split are left unset. Deduplicates on `global_key` automatically.
+
+### ✅ Phase 1-single — Pl@ntNet Single-Species Predictions
+
+**Step 1 — Get predictions:** Calls the Pl@ntNet `/v2/identify/k-central-america` endpoint directly (1 API credit per image). Returns top-5 species + organ prediction per image. Per-image cache makes it safe to stop and resume. 7,679 predictions obtained (38 images returned no species).
+
+```bash
+# Test: 1 image, verbose output
+python scripts/13_single_predictions/13a_get_single_predictions.py --test
+
+# Full run: all 7,717 images (~1 hr at default 0.5s delay)
+python scripts/13_single_predictions/13a_get_single_predictions.py
+
+# Custom delay
+python scripts/13_single_predictions/13a_get_single_predictions.py --delay 1.0
+```
+
+**Step 2 — Crosswalk + import:** Resolves Pl@ntNet GBIF IDs to WCVP canonical names via the crosswalk, then imports into Project A as a Model Run (name configured in `config.yaml`). Imports Radio "Taxon" (top-1 species with confidence) and Checklist "Organs" annotations. 3,721 / 7,679 predictions resolved (48.5% — species outside the Project A ontology are excluded). GT labels are linked and train/val/test splits assigned.
+
+```bash
+# Test: 5 predictions only
+python scripts/13_single_predictions/13b_import_single_predictions.py --test
+
+# Full import
+python scripts/13_single_predictions/13b_import_single_predictions.py
+```
+
+> ⚠️ **Metrics note:** Labelbox automatic classification metrics are not available for this setup (investigated exhaustively). Use the per-image confusion matrix in the Model Run UI, or compute metrics externally from exported GT/prediction data.
+
+### ⏳ Phase 1-multi — Pl@ntNet Multi-Species Predictions _(awaiting Pl@ntNet team)_
+
+The Pl@ntNet team runs the survey tiles endpoint on all 7,717 images and returns a predictions JSON. This will be imported as a separate Model Run for side-by-side comparison with the single-species run.
+
 ### ✅ Phase 2a — Get Pl@ntNet embeddings
 
 ```bash
@@ -185,49 +236,6 @@ python scripts/08_embeddings/08b_upload_embeddings.py
 
 Maps embeddings to Labelbox data row IDs, writes an NDJSON file, and uploads to a custom Labelbox embedding (`PlantNet-v7.4-1280px`). Creates the embedding object if it doesn't exist. Vectors are ingested asynchronously — similarity search in Catalog activates once all vectors are indexed (requires ≥1,000).
 
-### ✅ Phase 0k — Import train/val/test split metadata
-
-```bash
-# Test: 5 rows only
-python scripts/10_splits/10_import_splits.py --test
-
-# Full run
-python scripts/10_splits/10_import_splits.py
-```
-
-Reads `input/boxes/bci_images_for_plantnet_w_split.csv` and upserts the reserved `split` enum metadata field on each data row in the combined dataset. 3,324 rows assigned (train=2,256 / valid=488 / test=580); 4,393 rows with no split are left unset. Deduplicates on `global_key` automatically.
-
-### 🟡 Phase 1-single — Pl@ntNet Single-Species Predictions
-
-Calls the Pl@ntNet `/v2/identify/k-central-america` endpoint directly (1 API credit per image). Returns top-5 species + organ prediction per image. Per-image cache makes it safe to stop and resume.
-
-```bash
-# Test: 1 image, verbose output
-python scripts/13_single_predictions/13a_get_single_predictions.py --test
-
-# Full run: all 7,717 images (~1 hr at default 0.5s delay)
-python scripts/13_single_predictions/13a_get_single_predictions.py
-
-# Custom delay
-python scripts/13_single_predictions/13a_get_single_predictions.py --delay 1.0
-```
-
-Then import into Project A as a Model Run (`PlantNet Single-Species (k-central-america)`):
-
-```bash
-# Test: 5 predictions only
-python scripts/13_single_predictions/13b_import_single_predictions.py --test
-
-# Full import
-python scripts/13_single_predictions/13b_import_single_predictions.py
-```
-
-Imports Radio "Taxon" (top-1 species with confidence) and Checklist "Organs" annotations. Results are visible in Project A's Model Runs tab for classification metric comparison against ground truth.
-
-### ⏳ Phase 1-multi — Pl@ntNet Multi-Species Predictions _(awaiting Pl@ntNet team)_
-
-The Pl@ntNet team runs the survey tiles endpoint on all 7,717 images and returns a predictions JSON. This will be imported as a separate Model Run (`PlantNet Multi-Species (k-central-america)`) for side-by-side comparison with the single-species run.
-
 ### ⏳ Phase 3 — Workshop: Botanist Labelling _(pending)_
 
 Once predictions and embeddings are in place:
@@ -245,6 +253,8 @@ All pipeline settings are in [config.yaml](config.yaml):
 - `labelbox.dataset_prefix` — prefix for BCI datasets to export
 - `labelbox.label_projects` — project names from which to keep labels (demo projects excluded)
 - `labelbox.combined_dataset_name` — name for the new consolidated dataset (`BCI Workshop - Drone Photos`)
+- `plantnet.identify_url` — Pl@ntNet `/v2/identify/k-central-america` endpoint
+- `plantnet.single_model_name` / `single_model_run_name` — Model Run naming in Labelbox
 - `plantnet.embeddings_api_url` — Pl@ntNet `/v2/embeddings` endpoint
 - `folders.*` — output paths for each pipeline stage
 

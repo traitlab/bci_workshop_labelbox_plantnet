@@ -69,15 +69,19 @@ Ground truth annotations use GBIF backbone accepted taxon IDs. Pl@ntNet predicti
 
 ## Pl@ntNet Predictions Workflow
 
-We do NOT call the multi-species survey API ourselves (rate limit constraints). Instead: export dataset JSON with image URLs → send to Pl@ntNet team → receive predictions JSON back. Scripts work with the returned predictions JSON as input. Details in PLAN.md (Phase 0h, Phase 1).
+Two prediction tracks:
+- **Single-species:** We call the `/v2/identify/k-central-america` endpoint directly (1 credit/image). Already done for all 7,717 images.
+- **Multi-species:** We do NOT call the survey API ourselves (rate limit constraints). Instead: export image list CSV → send to Pl@ntNet team → receive predictions JSON back. Awaiting team.
+
+Details in PLAN.md (Phase 0h, Phase 1).
 
 ## Pl@ntNet Embeddings
 
-Use the `/v2/embeddings` API route — one global embedding per image, one API call per image. This is separate from the predictions workflow (which the Pl@ntNet team handles). Details in PLAN.md (Phase 2).
+Use the `/v2/embeddings` API route — one global embedding per image, one API call per image. This is separate from the predictions workflow. Details in PLAN.md (Phase 2).
 
 ## Metrics
 
-Primary metric: Labelbox Radio classification metric — compares Model Run Radio prediction against ground truth Radio label. Radio GT must be pre-filled with the dominant species (most mask pixels) for each image. No secondary Python benchmarking notebook.
+Intended primary metric: Labelbox Radio classification metric (Model Run Radio prediction vs ground truth Radio label). However, Labelbox automatic classification metrics do not fire for this setup (investigated exhaustively with IOU=0 threshold, raw NDJSON, reduced class count — none triggered auto-metrics). Workaround: use per-image confusion matrix in Model Run UI, or compute metrics externally from exported GT/prediction data. Radio GT is pre-filled with the dominant species (most mask pixels) for each image.
 
 ---
 
@@ -87,7 +91,7 @@ Primary metric: Labelbox Radio classification metric — compares Model Run Radi
 2. **Ontology size:** Project A uses 4 annotation types x N species. Must verify N x 4 <= 4,000 before creating. Include species + genus + family + empty option.
 3. **Project B ontology:** Adapted from `BCI close-up photo segmentation (espanol)` with WCVP IDs replacing GBIF backbone IDs as nested classification values. Keeps genus and family levels.
 4. **ID system:** Ground truth uses GBIF backbone IDs. Pl@ntNet returns WCVP IDs. Crosswalk resolves via canonical scientific names.
-5. **No direct Pl@ntNet survey API calls:** Export dataset, send to Pl@ntNet team, receive predictions JSON back.
+5. **Pl@ntNet predictions:** Single-species identify endpoint called directly (1 credit/image). Multi-species survey endpoint: export image list, send to Pl@ntNet team, receive predictions JSON back.
 6. **Embeddings via `/v2/embeddings`:** One global embedding per image. Separate from predictions workflow.
 7. **Botanist isolation:** Project B never shows model predictions. Data manager uses Catalog Slices to prioritize, not pre-populated labels.
 8. **Image hosting:** Alliance Canada permanent URLs. Never re-upload.

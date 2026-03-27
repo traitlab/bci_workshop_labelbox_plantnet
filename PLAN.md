@@ -4,7 +4,7 @@ See [CLAUDE.md](CLAUDE.md) for safety rules and architectural context.
 
 ## Current Status
 
-Phase 0 complete (all phases including combined mask+BBOX GT import). Phase 0k (splits) complete. Phase 2 (embeddings) complete. Phase 1-single (single-species predictions via API) ready to run. Phase 1-multi (multi-species predictions from Pl@ntNet team) pending. Phase 3 (workshop) pending.
+Phase 0 complete (all phases including combined mask+BBOX GT import). Phase 0k (splits) complete. Phase 1-single complete (predictions obtained + imported as Model Run; auto-metrics unavailable). Phase 2 (embeddings) complete. Phase 1-multi (multi-species predictions from Pl@ntNet team) pending. Phase 3 (workshop) pending.
 
 ---
 
