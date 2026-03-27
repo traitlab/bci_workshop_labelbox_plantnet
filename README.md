@@ -23,10 +23,12 @@ The pipeline has two Labelbox projects:
 | **0h** | Export image list for Pl@ntNet team | ✅ Done |
 | **0i** | Create Project B ontology + project | ✅ Done |
 | **0k** | Import train/val/test split metadata into combined dataset | ✅ Done |
-| **1a** | Parse Pl@ntNet predictions JSON | ⏳ Awaiting Pl@ntNet team |
-| **1b** | Apply GBIF ↔ WCVP crosswalk to predictions | ⏳ Pending |
-| **1c** | Import predictions into Project A Model Run | ⏳ Pending |
-| **1d** | Review metrics in Labelbox UI | ⏳ Pending |
+| **1a-single** | Get single-species predictions (`k-central-america`, 1 credit/image) | 🟡 Ready to run |
+| **1b+1c-single** | Crosswalk + import into Project A Model Run (Radio Taxon + Organs) | ⏳ Pending |
+| **1d-single** | Review single-species metrics in Labelbox UI | ⏳ Pending |
+| **1a-multi** | Parse multi-species predictions JSON from Pl@ntNet team | ⏳ Awaiting team |
+| **1b+1c-multi** | Crosswalk + import multi-species Model Run | ⏳ Pending |
+| **1d-multi** | Compare single vs multi-species metrics | ⏳ Pending |
 | **2a** | Get Pl@ntNet embeddings for all 7,717 images | ✅ Done |
 | **2b** | Upload embeddings to Labelbox (similarity search) | ✅ Done |
 | **2c** | Demo Catalog similarity search | ⏳ Pending |
@@ -195,14 +197,36 @@ python scripts/10_splits/10_import_splits.py
 
 Reads `input/boxes/bci_images_for_plantnet_w_split.csv` and upserts the reserved `split` enum metadata field on each data row in the combined dataset. 3,324 rows assigned (train=2,256 / valid=488 / test=580); 4,393 rows with no split are left unset. Deduplicates on `global_key` automatically.
 
-### ⏳ Phase 1 — Pl@ntNet Predictions _(pending)_
+### 🟡 Phase 1-single — Pl@ntNet Single-Species Predictions
 
-Waiting for the multi-species predictions JSON from the Pl@ntNet team. Once received:
+Calls the Pl@ntNet `/v2/identify/k-central-america` endpoint directly (1 API credit per image). Returns top-5 species + organ prediction per image. Per-image cache makes it safe to stop and resume.
 
-1. **1a** — Parse and validate the predictions JSON
-2. **1b** — Apply GBIF ↔ WCVP crosswalk to align taxon IDs
-3. **1c** — Import predictions into Project A as a Model Run
-4. **1d** — Review Radio classification metrics in Labelbox UI
+```bash
+# Test: 1 image, verbose output
+python scripts/13_single_predictions/13a_get_single_predictions.py --test
+
+# Full run: all 7,717 images (~1 hr at default 0.5s delay)
+python scripts/13_single_predictions/13a_get_single_predictions.py
+
+# Custom delay
+python scripts/13_single_predictions/13a_get_single_predictions.py --delay 1.0
+```
+
+Then import into Project A as a Model Run (`PlantNet Single-Species (k-central-america)`):
+
+```bash
+# Test: 5 predictions only
+python scripts/13_single_predictions/13b_import_single_predictions.py --test
+
+# Full import
+python scripts/13_single_predictions/13b_import_single_predictions.py
+```
+
+Imports Radio "Taxon" (top-1 species with confidence) and Checklist "Organs" annotations. Results are visible in Project A's Model Runs tab for classification metric comparison against ground truth.
+
+### ⏳ Phase 1-multi — Pl@ntNet Multi-Species Predictions _(awaiting Pl@ntNet team)_
+
+The Pl@ntNet team runs the survey tiles endpoint on all 7,717 images and returns a predictions JSON. This will be imported as a separate Model Run (`PlantNet Multi-Species (k-central-america)`) for side-by-side comparison with the single-species run.
 
 ### ⏳ Phase 3 — Workshop: Botanist Labelling _(pending)_
 

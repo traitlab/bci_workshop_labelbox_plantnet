@@ -23,6 +23,10 @@ labelbox:
 
 plantnet:
   embeddings_api_url: https://my-api.plantnet.org/v2/embeddings
+  identify_url: https://my-api.plantnet.org/v2/identify/k-central-america
+  identify_nb_results: 5
+  identify_organs: auto
+  identify_lang: en
 
 folders:
   output: output
@@ -34,4 +38,5 @@ folders:
   export_for_plantnet: output/05_export_for_plantnet
   project_b: output/06_project_b
   predictions: output/07_predictions
+  single_predictions: output/13_single_predictions
   embeddings: output/08_embeddings

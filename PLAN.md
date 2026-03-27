@@ -4,7 +4,7 @@ See [CLAUDE.md](CLAUDE.md) for safety rules and architectural context.
 
 ## Current Status
 
-Phase 0 complete (all phases including combined mask+BBOX GT import). Phase 0k (splits) complete. Phase 2 (embeddings) complete. Phase 1 (predictions) and Phase 3 (workshop) pending.
+Phase 0 complete (all phases including combined mask+BBOX GT import). Phase 0k (splits) complete. Phase 2 (embeddings) complete. Phase 1-single (single-species predictions via API) ready to run. Phase 1-multi (multi-species predictions from Pl@ntNet team) pending. Phase 3 (workshop) pending.
 
 ---
 
@@ -99,19 +99,43 @@ Phase 0 complete (all phases including combined mask+BBOX GT import). Phase 0k (
 
 ---
 
-## Phase 1: Pl@ntNet Predictions (after receiving JSON back)
+## Phase 1: Pl@ntNet Predictions
 
-### 1a. Parse returned predictions JSON
-- [ ] Parse and validate the predictions JSON from Pl@ntNet team
+Two model runs will be created in Project A for comparison:
+- **Single-species** (`k-central-america` identify endpoint, 1 credit/image) — can run now
+- **Multi-species** (survey tiles endpoint, sent to Pl@ntNet team) — awaiting team JSON
 
-### 1b. Apply GBIF crosswalk
-- [ ] Map WCVP IDs in predictions → backbone IDs for Project A compatibility
+### 1a-single. Get single-species predictions from Pl@ntNet API
+- [ ] Call `/v2/identify/k-central-america` for all 7,717 images (1 credit each)
+- Center-crop to 1280×1280px, same pattern as embeddings script
+- Returns top-5 species + organ prediction per image
+- Per-image cache → safe to stop and resume
+- Script: `scripts/13_single_predictions/13a_get_single_predictions.py`
+- Output: `output/13_single_predictions/predictions.json`, per-image cache
 
-### 1c. Import predictions into Project A Model Run
-- [ ] Import as BBOX + nested Radio + global Radio/Checklist annotations
+### 1b+1c-single. Apply crosswalk and import into Project A Model Run
+- [ ] Resolve Pl@ntNet GBIF IDs → WCVP canonical names via crosswalk
+- [ ] Import into Model Run `PlantNet Single-Species (k-central-america)`:
+  - [Global] Radio "Taxon" = top-1 species with confidence score
+  - [Global] Checklist "Organs" = predicted organs (Leaf/Flower/Fruit/Branch/Bark)
+- Script: `scripts/13_single_predictions/13b_import_single_predictions.py`
 
-### 1d. Review metrics in Labelbox UI
-- [ ] Verify Radio classification metrics (accuracy, per-class F1, confusion matrix) appear correctly
+### 1d-single. Review metrics in Labelbox UI
+- [ ] Verify Radio classification metrics appear correctly in Project A Model Run
+
+### 1a-multi. Parse multi-species predictions JSON _(awaiting Pl@ntNet team)_
+- [ ] Parse and validate the multi-species predictions JSON from Pl@ntNet team
+- They run `/v2/survey/tiles/k-central-america` on all 7,717 images
+
+### 1b-multi. Apply GBIF crosswalk to multi-species predictions
+- [ ] Map Pl@ntNet GBIF IDs → WCVP canonical names
+
+### 1c-multi. Import multi-species predictions into Project A Model Run
+- [ ] Import as separate Model Run `PlantNet Multi-Species (k-central-america)`
+- Same annotation types: Radio "Taxon" (dominant) + Checklist "Organs"
+
+### 1d-multi. Compare single vs multi-species metrics
+- [ ] Compare Radio classification metrics between both model runs in Labelbox UI
 
 ---
 
