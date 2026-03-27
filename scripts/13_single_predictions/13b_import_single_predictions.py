@@ -8,8 +8,9 @@ with:
   - [Global] Radio "Taxon"         = top-1 species (WCVP canonical name, with confidence)
   - [Global] Checklist "Organs"    = predicted organs (mapped from Pl@ntNet organ strings)
 
-The Model Run is named "PlantNet Single-Species (k-central-america)" and is
-created under a Model named "PlantNet Single-Species".
+Model and run names are read from config.yaml:
+  plantnet.single_model_name      (e.g. "Pl@ntNet Single - Central America")
+  plantnet.single_model_run_name  (e.g. "v7.4-2026-03-27")
 
 Organ mapping (Pl@ntNet → Labelbox ontology):
   leaf, leaves  → Leaf
