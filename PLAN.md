@@ -4,7 +4,7 @@ See [CLAUDE.md](CLAUDE.md) for safety rules and architectural context.
 
 ## Current Status
 
-Phase 0 complete (all phases including combined mask+BBOX GT import). Phase 0k (splits) complete. Phase 1-single complete (predictions obtained + imported as Model Run; auto-metrics unavailable). Phase 2 (embeddings) complete. Phase 1-multi (multi-species predictions from Pl@ntNet team) pending. Phase 3 (workshop) pending.
+Phase 0 complete (all phases including combined mask+BBOX GT import). Phase 0k (splits) complete. Phase 1-single complete (predictions obtained + imported as Model Run; auto-metrics unavailable). Phase 2 (embeddings) complete. Phase 1-multi complete — ontology updated (Cover % added), Project A model run imported (7,563/7,717, 21,556 boxes), Project B model run imported (7,205/7,717, 38,637 boxes), multi-embeddings uploaded (7,691 vectors, PlantNet-v7.4-multi). Phase 3 (workshop) pending.
 
 ---
 
@@ -129,18 +129,37 @@ Two model runs will be created in Project A for comparison:
 - [~] Labelbox automatic classification metrics not available for this setup (investigated exhaustively: IOU=0, raw NDJSON, few classes — all tested, no auto-metrics)
 - Workaround: use the confusion matrix view per-image in the model run UI, or compute metrics externally from the exported GT/prediction data
 
-### 1a-multi. Parse multi-species predictions JSON _(awaiting Pl@ntNet team)_
-- [ ] Parse and validate the multi-species predictions JSON from Pl@ntNet team
-- They run `/v2/survey/tiles/k-central-america` on all 7,717 images
+### 1-multi-a. Update Project A ontology
+- [x] Added nested Text "Cover (%)" to every option of global Radio "Taxon" and Checklist "Taxa"
+- [x] Removed global Checklist "Organs" (organs now live only inside BBOX "Plant box")
+- New ontology uid: `cmnas2u3j0ne1073w6uil18mk`
+- Script: `scripts/14_multi_predictions/14a_update_ontology.py`
 
-### 1b-multi. Apply GBIF crosswalk to multi-species predictions
-- [ ] Map Pl@ntNet GBIF IDs → WCVP canonical names
+### 1-multi-b. Import multi-species predictions into Project A Model Run
+- [x] Parsed 7,717 survey JSON files at `C:\data\plantnet\2026-02-17\`
+- [x] Resolved GBIF IDs → WCVP canonical names via crosswalk (389 Project A taxa)
+- [x] Imported as Model Run `Pl@ntNet Multi - Central America` / `v7.4-2026-03-28`:
+  - [Global] Radio "Taxon" = highest-coverage resolved species + nested Cover (%)
+  - [Global] Checklist "Taxa" = all resolved species, each with nested Cover (%)
+  - [Tool] BBOX "Plant box" = one box per species (best tile, score >= 0.05) + nested Taxon + Organs
+- 7,563/7,717 uploaded (98.0%), 21,556 boxes, 0 errors; 154 images had no resolved species in 389-taxon list
+- 1 malformed JSON file skipped (truncated)
+- Note: confidence not set on annotations — Labelbox requires consistent confidence across all leaf nodes; incompatible with nested Text (Cover %) which has no confidence
+- Script: `scripts/14_multi_predictions/14b_import_multi_predictions_a.py`
 
-### 1c-multi. Import multi-species predictions into Project A Model Run
-- [ ] Import as separate Model Run `PlantNet Multi-Species (k-central-america)`
-- Same annotation types: Radio "Taxon" (dominant) + Checklist "Organs"
+### 1-multi-c. Import BBOX predictions into Project B Model Run
+- [x] Imported as Model Run `Pl@ntNet Multi - Botanist` / `v7.4-2026-03-28` (1,880 taxa full set)
+- BBOX "Planta" with nested Radio "Taxón" + Checklist "Órgano" (Flor/Fruta only)
+- 7,503/7,717 uploaded (97.2%), 38,637 boxes, 0 errors; 214 images had no resolved species in 1,880-taxon list
+- Fixed: crosswalk loading now replicates ontology deduplication (sort by label, keep first per wcvp_id)
+- Script: `scripts/14_multi_predictions/14c_import_multi_predictions_b.py`
 
-### 1d-multi. Compare single vs multi-species metrics
+### 1-multi-d. Upload multi-species embeddings
+- [x] Mean-pooled per_tiles_embeddings (768-dim) across all tiles per image, L2-normalized
+- [x] Uploaded 7,691 vectors as custom embedding `PlantNet-v7.4-multi` (id: `ct6uqcrdy070001v8mnasratn`)
+- Script: `scripts/14_multi_predictions/14d_upload_multi_embeddings.py`
+
+### 1-multi-e. Compare single vs multi-species metrics
 - [ ] Compare Radio classification metrics between both model runs in Labelbox UI
 
 ---

@@ -11,8 +11,8 @@ labelbox:
     - 2024_BCI_plots_old
     - 2024_BCI_plots
   # Project A (all label types)
-  project_a_name: BCI Workshop - All Label Types v2
-  project_a_ontology_name: BCI Workshop - All Label Types v2
+  project_a_name: BCI Workshop - All Label Types
+  project_a_ontology_name: BCI Workshop - All Label Types
   # Source ontology ID for Project B taxon list
   project_b_source_ontology_id: cm9fy6wm00xis073obwoa5228
   # Project B (botanist labelling)
@@ -29,6 +29,14 @@ plantnet:
   identify_lang: en
   single_model_name: Pl@ntNet Single - Central America
   single_model_run_name: v7.4-2026-03-27
+  # Multi-species (survey) predictions
+  multi_model_name: Pl@ntNet Multi - Central America
+  multi_model_run_name: v7.4-2026-03-28
+  multi_model_b_name: Pl@ntNet Multi - Botanist
+  multi_model_run_b_name: v7.4-2026-03-28
+  multi_predictions_dir: C:\data\plantnet\2026-02-17
+  confidence_threshold_boxes: 0.05
+  multi_embedding_name: PlantNet-v7.4-multi
 
 folders:
   output: output
@@ -42,3 +50,4 @@ folders:
   predictions: output/07_predictions
   single_predictions: output/13_single_predictions
   embeddings: output/08_embeddings
+  multi_predictions: output/14_multi_predictions
