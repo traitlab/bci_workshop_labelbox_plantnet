@@ -26,9 +26,11 @@ The pipeline has two Labelbox projects:
 | **1a-single** | Get single-species predictions (`k-central-america`, 1 credit/image) | ✅ Done |
 | **1b+1c-single** | Crosswalk + import into Project A Model Run (Radio Taxon + Organs) | ✅ Done |
 | **1d-single** | Review single-species metrics in Labelbox UI | ⚠️ No auto-metrics |
-| **1a-multi** | Parse multi-species predictions JSON from Pl@ntNet team | ⏳ Awaiting team |
-| **1b+1c-multi** | Crosswalk + import multi-species Model Run | ⏳ Pending |
-| **1d-multi** | Compare single vs multi-species metrics | ⏳ Pending |
+| **1-multi-a** | Update Project A ontology (add Cover %, remove global Organs) | ✅ Done |
+| **1-multi-b** | Import multi-species predictions into Project A Model Run | ✅ Done |
+| **1-multi-c** | Import BBOX predictions into Project B Model Run | ✅ Done |
+| **1-multi-d** | Upload `PlantNet-v7.4-multi` mean-pooled embeddings | ✅ Done |
+| **1-multi-e** | Compare single vs multi-species metrics | ⏳ Pending |
 | **2a** | Get Pl@ntNet embeddings for all 7,717 images | ✅ Done |
 | **2b** | Upload embeddings to Labelbox (similarity search) | ✅ Done |
 | **2c** | Demo Catalog similarity search | ⏳ Pending |
@@ -129,7 +131,7 @@ Creates the `BCI Workshop - Drone Photos` Labelbox dataset with new data rows po
 python scripts/06_project_a/06_create_project_a.py
 ```
 
-Creates the `BCI Workshop - All Label Types v2` ontology and project in Labelbox. Ontology has 5 annotation types (Global Radio, Global Checklist Taxa, Global Checklist Organs, BBOX, Raster Segmentation) sharing 389 taxon options.
+Creates the `BCI Workshop - All Label Types` ontology and project in Labelbox. Ontology has 5 annotation types (Global Radio, Global Checklist Taxa, Global Checklist Organs, BBOX, Raster Segmentation) sharing 389 taxon options.
 
 ### ✅ Phase 0g+0j — Import ground truth labels (combined)
 
@@ -205,9 +207,56 @@ python scripts/13_single_predictions/13b_import_single_predictions.py
 
 > ⚠️ **Metrics note:** Labelbox automatic classification metrics are not available for this setup (investigated exhaustively). Use the per-image confusion matrix in the Model Run UI, or compute metrics externally from exported GT/prediction data.
 
-### ⏳ Phase 1-multi — Pl@ntNet Multi-Species Predictions _(awaiting Pl@ntNet team)_
+### ✅ Phase 1-multi — Pl@ntNet Multi-Species Predictions
 
-The Pl@ntNet team runs the survey tiles endpoint on all 7,717 images and returns a predictions JSON. This will be imported as a separate Model Run for side-by-side comparison with the single-species run.
+Multi-species survey predictions (7,717 JSON files) were received from the Pl@ntNet team. Four scripts process these in sequence:
+
+**Step a — Update Project A ontology:**
+
+```bash
+python scripts/14_multi_predictions/14a_update_ontology.py --dry-run
+python scripts/14_multi_predictions/14a_update_ontology.py
+```
+
+Adds nested Text `"Cover (%)"` to global Radio `"Taxon"` and Checklist `"Taxa"`. Removes global Checklist `"Organs"` (now nested inside BBOX only). Creates a new ontology and reconnects Project A.
+
+**Step b — Import into Project A Model Run:**
+
+```bash
+# Test: 5 files only
+python scripts/14_multi_predictions/14b_import_multi_predictions_a.py --test
+
+# Full import
+python scripts/14_multi_predictions/14b_import_multi_predictions_a.py
+```
+
+Resolves GBIF IDs → WCVP canonical names (389 Project A taxa). Imports: Radio `"Taxon"` (highest-coverage species + Cover %), Checklist `"Taxa"` (all resolved species + Cover %), BBOX `"Plant box"` (one box per species, best tile ≥ 0.05 score, with Taxon + Organs). Result: 7,563 / 7,717 images (21,556 boxes, 0 errors).
+
+**Step c — Import into Project B Model Run:**
+
+```bash
+# Test: 5 files only
+python scripts/14_multi_predictions/14c_import_multi_predictions_b.py --test
+
+# Full import
+python scripts/14_multi_predictions/14c_import_multi_predictions_b.py
+```
+
+Resolves to Project B's 1,880-taxon list. Imports BBOX `"Planta"` with nested Radio `"Taxón"` and Checklist `"Órgano"` (Flor / Fruta only). Data manager view only — never shown to botanists. Result: 7,503 / 7,717 images (38,637 boxes, 0 errors).
+
+**Step d — Upload mean-pooled embeddings:**
+
+```bash
+# Test: 5 files only
+python scripts/14_multi_predictions/14d_upload_multi_embeddings.py --test
+
+# Full upload
+python scripts/14_multi_predictions/14d_upload_multi_embeddings.py
+```
+
+Mean-pools `per_tiles_embeddings` (768-dim) across all tiles per image, L2-normalizes, and uploads as custom Labelbox embedding `PlantNet-v7.4-multi`. Result: 7,691 vectors uploaded.
+
+> ⚠️ **Metrics note:** Labelbox automatic classification metrics are not available for this setup. Use the per-image confusion matrix in the Model Run UI, or compute metrics externally.
 
 ### ✅ Phase 2a — Get Pl@ntNet embeddings
 
@@ -254,7 +303,11 @@ All pipeline settings are in [config.yaml](config.yaml):
 - `labelbox.label_projects` — project names from which to keep labels (demo projects excluded)
 - `labelbox.combined_dataset_name` — name for the new consolidated dataset (`BCI Workshop - Drone Photos`)
 - `plantnet.identify_url` — Pl@ntNet `/v2/identify/k-central-america` endpoint
-- `plantnet.single_model_name` / `single_model_run_name` — Model Run naming in Labelbox
+- `plantnet.single_model_name` / `single_model_run_name` — single-species Model Run naming
+- `plantnet.multi_model_name` / `multi_model_run_name` — Project A multi-species Model Run naming
+- `plantnet.multi_model_b_name` / `multi_model_run_b_name` — Project B multi-species Model Run naming
+- `plantnet.multi_predictions_dir` — local path to multi-species JSON files from Pl@ntNet team
+- `plantnet.multi_embedding_name` — name for the mean-pooled tile embeddings in Labelbox
 - `plantnet.embeddings_api_url` — Pl@ntNet `/v2/embeddings` endpoint
 - `folders.*` — output paths for each pipeline stage
 
