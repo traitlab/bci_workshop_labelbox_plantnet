@@ -8,8 +8,9 @@ into Project A as a new Model Run with:
   - [Global] Radio "Taxon"      = highest-coverage species (with nested Cover (%))
   - [Global] Checklist "Taxa"   = all resolved species (each with nested Cover (%))
   - [Tool] BBOX "Plant box"     = one box per species (best tile, score >= threshold)
-    - Nested Radio "Taxon"      = species name
-    - Nested Checklist "Organs"  = organ from best tile
+    - Nested Radio "Taxon"      = species name (confidence = tile score)
+    - Nested Checklist "Organs"  = organ from best tile (confidence = tile score)
+    BBOX confidence = tile score
 
 Model and run names are read from config.yaml:
   plantnet.multi_model_name
@@ -204,8 +205,8 @@ def build_label(global_key: str, parsed: dict,
     annotations = []
 
     # Global Radio "Taxon" — highest-coverage species
-    # No confidence on answers: Labelbox requires it consistently across all leaf nodes,
-    # which is impossible when mixing typed annotations (Text has no confidence field).
+    # No confidence here: nested Text "Cover (%)" has no confidence field, and Labelbox
+    # requires confidence to be consistent across all leaf nodes in the tree.
     top = resolved[0]
     annotations.append(
         lb_types.ClassificationAnnotation(
@@ -271,10 +272,15 @@ def build_label(global_key: str, parsed: dict,
         if y_max <= y_min:
             y_max = y_min + 1
 
+        tile_score = best_tile.get("score", 0)
+
         species_cls = lb_types.ClassificationAnnotation(
             name=CLS_TAXON,
             value=lb_types.Radio(
-                answer=lb_types.ClassificationAnswer(name=sp["canon_name"])
+                answer=lb_types.ClassificationAnswer(
+                    name=sp["canon_name"],
+                    confidence=tile_score,
+                )
             ),
         )
 
@@ -285,13 +291,17 @@ def build_label(global_key: str, parsed: dict,
                 lb_types.ClassificationAnnotation(
                     name=CLS_ORGANS,
                     value=lb_types.Checklist(
-                        answer=[lb_types.ClassificationAnswer(name=lb_organ)]
+                        answer=[lb_types.ClassificationAnswer(
+                            name=lb_organ,
+                            confidence=tile_score,
+                        )]
                     ),
                 )
             )
 
         bbox = lb_types.ObjectAnnotation(
             name=TOOL_BBOX,
+            confidence=tile_score,
             value=lb_types.Rectangle(
                 start=lb_types.Point(x=x_min, y=y_min),
                 end=lb_types.Point(x=x_max, y=y_max),

@@ -200,11 +200,14 @@ def build_label_b(global_key: str, parsed: dict,
 
         # Nested Radio "Taxón" (no confidence — Labelbox requires consistent confidence
         # across all leaf nodes; mixed annotation trees can't satisfy this)
+        tile_score = best_tile.get("score", 0)
+
         taxon_cls = lb_types.ClassificationAnnotation(
             name=CLS_TAXON,
             value=lb_types.Radio(
                 answer=lb_types.ClassificationAnswer(
                     name=label_name,
+                    confidence=tile_score,
                 )
             ),
         )
@@ -219,13 +222,17 @@ def build_label_b(global_key: str, parsed: dict,
                 lb_types.ClassificationAnnotation(
                     name=CLS_ORGANO,
                     value=lb_types.Checklist(
-                        answer=[lb_types.ClassificationAnswer(name=lb_organ)]
+                        answer=[lb_types.ClassificationAnswer(
+                            name=lb_organ,
+                            confidence=tile_score,
+                        )]
                     ),
                 )
             )
 
         bbox = lb_types.ObjectAnnotation(
             name=TOOL_BBOX,
+            confidence=tile_score,
             value=lb_types.Rectangle(
                 start=lb_types.Point(x=x_min, y=y_min),
                 end=lb_types.Point(x=x_max, y=y_max),
